@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@theme {
+  --font-heading: "Space Grotesk", sans-serif;
+  --font-body: "DM Sans", sans-serif;
+
+  --color-primary: #1E293B;
+  --color-secondary: #334155;
+  --color-cta: #22C55E;
+  --color-background-dark: #0F172A;
+  --color-background-light: #F5F7FA;
+  --color-text-dark: #F8FAFC;
+  --color-text-light: #1E293B;
+
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
+  --shadow-xl: 0 20px 25px rgba(0,0,0,0.15);
+}
+
+:root {
+  font-family: var(--font-body);
+  background-color: var(--color-background-light);
+  color: var(--color-text-light);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    background-color: var(--color-background-dark);
+    color: var(--color-text-dark);
+  }
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+/* Global utility for cards from design system */
+.card-glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(226, 232, 240, 0.5);
+  border-radius: var(--radius-xl);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-md);
+  transition: all 0.2s ease;
+}
+
+.dark .card-glass {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(51, 65, 85, 0.5);
+}
+
+.card-glass:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* Button variants */
+.btn-cta {
+  background-color: var(--color-cta);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-cta:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}

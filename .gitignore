@@ -1,0 +1,8 @@
+# .gitignore — 忽略指定项目文件夹
+
+/预设文件/
+/项目信息/
+/ai_model/
+/design-system/
+/.agent/
+/backup/
