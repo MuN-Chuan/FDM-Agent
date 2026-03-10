@@ -29,7 +29,7 @@ const subItems = [
 
 export const Sidebar: React.FC = () => {
     return (
-        <aside className="fixed left-0 top-0 h-screen w-[240px] bg-primary border-r border-secondary/20 flex flex-col z-50">
+        <aside className="h-screen w-[240px] shrink-0 bg-primary border-r border-secondary/20 flex flex-col z-50">
             <div className="p-6">
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-cta rounded flex items-center justify-center">
@@ -44,8 +44,8 @@ export const Sidebar: React.FC = () => {
                     <button
                         key={item.id}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ${item.active
-                                ? 'bg-cta/10 text-cta'
-                                : 'text-text-dark/60 hover:text-text-dark hover:bg-secondary/20'
+                            ? 'bg-cta/10 text-cta'
+                            : 'text-text-dark/60 hover:text-text-dark hover:bg-secondary/20'
                             }`}
                     >
                         <item.icon size={20} />

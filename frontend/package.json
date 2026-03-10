@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/jszip": "^3.4.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.575.0",
     "onnxruntime-web": "^1.20.1",
     "react": "^19.2.0",

@@ -1,34 +1,29 @@
 import React from 'react';
 import { ArrowRight, Info, AlertTriangle } from 'lucide-react';
 
-const modifications = [
-    {
-        name: 'flow_rate',
-        old: '100%',
-        new: '95%',
-        range: '90%-110%',
-        reason: '根据由于拉丝和溢料表现，建议降低默认流量以减少压力。',
-        risk: 'low'
-    },
-    {
-        name: 'retraction_distance',
-        old: '0.8mm',
-        new: '1.2mm',
-        range: '0.4%-2.0mm',
-        reason: '增加回抽距离可更有效地切断喷嘴处溢出的熔体。',
-        risk: 'medium'
-    },
-    {
-        name: 'outer_wall_acceleration',
-        old: '10000',
-        new: '5000',
-        range: '2000-12000',
-        reason: '降低外墙加速度可显著提升表面质量，减少因震动产生的拉丝痕迹。',
-        risk: 'low'
-    },
-];
+export interface ParameterModification {
+    name: string;
+    old: string;
+    new: string;
+    range: string;
+    reason: string;
+    risk: 'low' | 'medium' | 'high';
+}
 
-export const ParameterDiffViewer: React.FC = () => {
+interface ParameterDiffViewerProps {
+    modifications?: ParameterModification[];
+}
+
+export const ParameterDiffViewer: React.FC<ParameterDiffViewerProps> = ({ modifications = [] }) => {
+    if (modifications.length === 0) {
+        return (
+            <div className="p-8 text-center text-text-light/30 border border-dashed border-secondary/10 rounded-xl bg-secondary/5">
+                <Info size={24} className="mx-auto mb-3 opacity-20" />
+                <p className="text-sm">暂无参数修改建议。对于简单的诊断，可能不需要修改预设文件。</p>
+            </div>
+        );
+    }
+
     return (
         <div className="overflow-hidden rounded-xl border border-secondary/10">
             <table className="w-full text-left border-collapse">
@@ -55,10 +50,12 @@ export const ParameterDiffViewer: React.FC = () => {
                                 <p className="text-[10px] text-text-light/40 mt-1.5">安全区间: {item.range}</p>
                             </td>
                             <td className="px-6 py-4">
-                                <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold uppercase ${item.risk === 'low' ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'
+                                <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold uppercase ${item.risk === 'low' ? 'bg-green-500/10 text-green-500' :
+                                        item.risk === 'medium' ? 'bg-yellow-500/10 text-yellow-500' :
+                                            'bg-red-500/10 text-red-500'
                                     }`}>
                                     {item.risk === 'low' ? <Info size={12} /> : <AlertTriangle size={12} />}
-                                    {item.risk === 'low' ? '低风险' : '中风险'}
+                                    {item.risk === 'low' ? '低风险' : item.risk === 'medium' ? '中风险' : '高风险'}
                                 </span>
                             </td>
                             <td className="px-6 py-4">

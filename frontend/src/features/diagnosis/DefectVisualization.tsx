@@ -1,13 +1,17 @@
 import React from 'react';
-import { Maximize2, Tag, Crosshair } from 'lucide-react';
+import { Maximize2, Tag, Crosshair, Zap } from 'lucide-react';
 import type { InferenceResult } from './useOnnxModel';
 
 interface DefectVisualizationProps {
     imageFile: File | null;
     results: InferenceResult[] | null;
+    /** If provided, shows a "继续深度诊断" button (detect-only mode) */
+    onContinueDeep?: () => void;
+    /** Called when user manually corrects/reorders the results */
+    onResultsUpdated?: (results: InferenceResult[]) => void;
 }
 
-export const DefectVisualization: React.FC<DefectVisualizationProps> = ({ imageFile, results }) => {
+export const DefectVisualization: React.FC<DefectVisualizationProps> = ({ imageFile, results, onContinueDeep }) => {
     if (!imageFile || !results) {
         return (
             <div className="flex items-center justify-center p-12 text-sm text-text-light/40 border border-secondary/10 border-dashed rounded-xl">
@@ -83,6 +87,18 @@ export const DefectVisualization: React.FC<DefectVisualizationProps> = ({ imageF
                             最高置信度识别结果为 <strong>{primaryResult.className}</strong>，置信度 <strong>{(primaryResult.probability * 100).toFixed(1)}%</strong>。模型已通过 640px WebAssembly 后端完成本地加速推理。
                         </p>
                     </div>
+
+                    {/* 继续深度诊断 button — shown only in detect-only mode */}
+                    {onContinueDeep && (
+                        <button
+                            onClick={onContinueDeep}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-cta text-white font-bold text-sm hover:bg-cta/90 hover:scale-[1.01] transition-all shadow-lg shadow-cta/20"
+                        >
+                            <Zap size={16} />
+                            继续深度诊断
+                            <span className="text-xs font-normal text-white/70 ml-1">（使用以上识别结果，无需重新检测）</span>
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

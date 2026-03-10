@@ -1,0 +1,27 @@
+FILES: ['printer/碌霉谩蟽脿鈻捖得?A1 mini 0.4 nozzle.json', 'filament/Bambu PETG Basic @BBL A1M 0.4 nozzle - 碌茂鈺栁︹敜楼.json', 'filament/Bambu PETG HF @BBL A1M - 碌茂鈺栁︹敜楼.json', 'filament/Bambu PLA Basic @BBL A1M - 碌茂鈺栁︹敜楼.json', 'filament/Generic PETG @BBL A1M - 碌茂鈺栁︹敜楼.json', 'filament/Generic PLA @BBL A1M - 碌茂鈺栁︹敜楼.json', 'filament/WC.json', 'process/0.16mm Standard @BBL A1M - 蟽鈺曗晻桅潞盲.json', 'process/0.20mm - OLD - 蟽鈺曗晻桅潞盲.json', 'process/0.20mm - WC - 蟽鈺曗晻桅潞盲.json', 'process/0.20mm Standard @BBL A1M - 3蟽贸脰.json', 'process/0.20mm Standard @BBL A1M - 蟽鈺曗晻桅潞盲.json', 'process/0.20mm Standard @BBL A1M - 桅铆脩蟽眉鈹愊冣晻鈺曃β好?json', 'process/0.20mm Standard @BBL A1M - 螛脟茠蟽鈺懧?json', 'bundle_structure.json']
+BUNDLE: {
+  "bundle_id": "2752843757_鏃犲叡鎸?A1 mini 0.4 nozzle_20260307160843",
+  "bundle_type": "printer config bundle",
+  "filament_config": [
+    "filament/Bambu PETG Basic @BBL A1M 0.4 nozzle - 鎷疯礉.json",
+    "filament/Bambu PETG HF @BBL A1M - 鎷疯礉.json",
+    "filament/Bambu PLA Basic @BBL A1M - 鎷疯礉.json",
+    "filament/Generic PETG @BBL A1M - 鎷疯礉.json",
+    "filament/Generic PLA @BBL A1M - 鎷疯礉.json",
+    "filament/WC.json"
+  ],
+  "printer_config": [
+    "printer/鏃犲叡鎸?A1 mini 0.4 nozzle.json"
+  ],
+  "printer_preset_name": "鏃犲叡鎸?A1 mini 0.4 nozzle",
+  "process_config": [
+    "process/0.16mm Standard @BBL A1M - 甯歌.json",
+    "process/0.20mm - OLD - 甯歌.json",
+    "process/0.20mm - WC - 甯歌.json",
+    "process/0.20mm Standard @BBL A1M - 3澧?json",
+    "process/0.20mm Standard @BBL A1M - 甯歌.json",
+    "process/0.20mm Standard @BBL A1M - 琛ュ伩甯歌.json",
+    "process/0.20mm Standard @BBL A1M - 閫熷害.json"
+  ],
+  "version": "01.10.01.09"
+}
