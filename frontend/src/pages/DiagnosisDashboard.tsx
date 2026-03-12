@@ -9,6 +9,9 @@ import { useOnnxModel } from '../features/diagnosis/useOnnxModel';
 import type { InferenceResult } from '../features/diagnosis/useOnnxModel';
 import { api } from '../api/api';
 import type { ParameterModification } from '../features/diagnosis/ParameterDiffViewer';
+import { ApiSettingsModal } from '../features/diagnosis/ApiSettingsModal';
+import { loadApiSettings } from '../api/apiSettings';
+import { Settings } from 'lucide-react';
 
 export const DiagnosisDashboard: React.FC = () => {
     const { isModelReady, isInferencing, modelError, runInference } = useOnnxModel();
@@ -24,51 +27,96 @@ export const DiagnosisDashboard: React.FC = () => {
     // AI Diagnosis results
     const [aiReasoning, setAiReasoning] = useState<string | null>(null);
     const [modifications, setModifications] = useState<ParameterModification[]>([]);
+    const [selectedDefectClasses, setSelectedDefectClasses] = useState<string[]>([]);
+
+    // API Settings modal
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+    const runDeepDiagnosis = async (payload: DiagnosisPayload, classesToUse: string[], allResults: InferenceResult[] | null) => {
+        setTimelineStatus('analyzing');
+        try {
+            const apiSettings = loadApiSettings();
+            let accumulatedReasoning = "";
+
+            // Build detections payload based on selected classes
+            const detectionsToSubmit = classesToUse.map(cls => {
+                const found = allResults?.find(r => r.className === cls);
+                return {
+                    label: cls,
+                    confidence: found ? found.probability : 0.99
+                };
+            });
+
+            await api.diagnoseStream({
+                detections: detectionsToSubmit,
+                description: payload.description,
+                safety_constraints: payload.safetyConstraints,
+                preset_data: {
+                    printer: payload.presetSelection?.printer?.data || {},
+                    filament: payload.presetSelection?.filaments.map(f => f.data) || [],
+                    process: payload.presetSelection?.process?.data || {}
+                },
+                api_settings: apiSettings
+            }, (chunk) => {
+                if (chunk.type === 'text' && chunk.content) {
+                    accumulatedReasoning += chunk.content;
+                    setAiReasoning(accumulatedReasoning);
+                } else if (chunk.type === 'done') {
+                    if (chunk.reasoning_markdown) setAiReasoning(chunk.reasoning_markdown);
+                    if (chunk.modifications) setModifications(chunk.modifications as ParameterModification[]);
+                    setTimelineStatus('completed');
+                } else if (chunk.type === 'error') {
+                    setAiReasoning(`### ❌ AI 服务异常\n\n${chunk.message}\n\n${chunk.raw ? "```text\n" + chunk.raw + "\n```" : ""}`);
+                    setTimelineStatus('completed');
+                }
+            });
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error);
+            console.error('Diagnosis stream failed:', msg);
+            setAiReasoning(`### ❌ 连接错误\n\n${msg}\n\n**请检查:**\n- 后端服务是否正在运行 (http://localhost:8001)\n- 网络连接是否正常`);
+            setModifications([]);
+            setTimelineStatus('completed');
+        }
+    };
 
     const handleStartDiagnosis = async (mode: DiagnosisMode, payload: DiagnosisPayload) => {
         setDiagnosisMode(mode);
         setCurrentPayload(payload);
+        setAiReasoning(null);
+        setModifications([]);
 
         let detections: InferenceResult[] = [];
+        let initialSelected: string[] = [];
+
         if (mode === 'detect' || mode === 'deep') {
             if (payload.imageFile) {
                 setInferenceResults(null);
                 setTimelineStatus('detecting');
                 const res = await runInference(payload.imageFile);
-                if (res) {
+                if (res && res.length > 0) {
                     setInferenceResults(res);
                     detections = res;
+                    initialSelected = [res[0].className]; // Default to highest confidence
+                    setSelectedDefectClasses(initialSelected);
                 }
             }
         }
 
         // Deep/Chat diagnosis backend call
         if (mode === 'deep' || mode === 'chat') {
-            setTimelineStatus('analyzing');
-            try {
-                const response = await api.diagnose({
-                    detections: detections.map(d => ({ label: d.className, confidence: d.probability })),
-                    description: payload.description,
-                    safety_constraints: payload.safetyConstraints,
-                    preset_data: payload.presetBundle
-                });
-                setAiReasoning(response.reasoning_markdown);
-                setModifications(response.modifications as ParameterModification[]);
-                setTimelineStatus('completed');
-            } catch (error) {
-                console.error('Diagnosis failed:', error);
-                setTimelineStatus('idle');
-            }
+            await runDeepDiagnosis(payload, initialSelected, detections);
         } else if (mode === 'detect') {
             setTimelineStatus('completed');
         }
-        // In 'chat' mode, no inference needed
     };
 
     /** Called from DefectVisualization "继续深度诊断" button */
     const handleContinueWithDetection = () => {
+        if (!currentPayload) return;
         setDiagnosisMode('deep');
-        // Keep existing inferenceResults as-is (bypass inference step)
+        setAiReasoning(null);
+        setModifications([]);
+        runDeepDiagnosis(currentPayload, selectedDefectClasses, inferenceResults);
     };
 
     /** Allow updating results after manual correction */
@@ -94,11 +142,21 @@ export const DiagnosisDashboard: React.FC = () => {
 
     return (
         <div className="space-y-8 pb-12 relative">
-            <header>
-                <h1 className="text-3xl font-heading font-bold text-text-light dark:text-text-dark">AI 诊断</h1>
-                <p className="text-text-light/60 dark:text-text-dark/40 mt-1">
-                    上传打印缺陷图片和预设文件，由本地识别模型与大语言模型协同工作提供深度诊断。
-                </p>
+            <header className="flex items-start justify-between">
+                <div>
+                    <h1 className="text-3xl font-heading font-bold text-text-light dark:text-text-dark">AI 诊断</h1>
+                    <p className="text-text-light/60 dark:text-text-dark/40 mt-1">
+                        上传打印缺陷图片和预设文件，由本地识别模型与大语言模型协同工作提供深度诊断。
+                    </p>
+                </div>
+                <button
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="p-2 bg-secondary/5 hover:bg-secondary/10 border border-secondary/10 hover:border-cta/30 rounded-xl transition-all text-text-light/60 hover:text-cta flex items-center gap-2"
+                    title="配置 AI 服务调用"
+                >
+                    <Settings size={20} />
+                    <span className="text-xs font-bold uppercase tracking-wider hidden sm:block">AI 设置</span>
+                </button>
             </header>
 
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-stretch">
@@ -135,6 +193,8 @@ export const DiagnosisDashboard: React.FC = () => {
                             <DefectVisualization
                                 imageFile={currentImageFile}
                                 results={inferenceResults}
+                                selectedClasses={selectedDefectClasses}
+                                onSelectionChange={setSelectedDefectClasses}
                                 onContinueDeep={
                                     diagnosisMode === 'detect'
                                         ? handleContinueWithDetection
@@ -184,6 +244,7 @@ export const DiagnosisDashboard: React.FC = () => {
                                     <AIResultMarkdown
                                         content={aiReasoning || ''}
                                         isLoading={timelineStatus === 'analyzing'}
+                                        modelName={loadApiSettings().model_name}
                                     />
 
                                     {diagnosisMode === 'deep' && (
@@ -217,6 +278,13 @@ export const DiagnosisDashboard: React.FC = () => {
                     <span>preset: {currentPayload.presetBundle?.bundleId?.slice(0, 20) ?? '—'}</span>
                 </div>
             )}
+
+            <ApiSettingsModal
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+                onSave={() => setIsSettingsOpen(false)}
+            />
         </div>
     );
 };
+

@@ -12,10 +12,21 @@ export interface InferenceResult {
 }
 
 const CLASSES = [
-    'first_layer_good', 'first_layer_high', 'first_layer_low', 'good',
-    'over_extrusion', 'print_detached', 'spaghetti', 'stringing',
-    'under_extrusion', 'warping', 'z_seam', 'z_wobble',
-    'clogged_nozzle', 'inconsistent_extrusion', 'missing_layers'
+    "Blob of Death",
+    "Blobs and Zits",
+    "Bridging Failure",
+    "Layer Separation",
+    "Layer Shifting",
+    "No Defect",
+    "Nozzle Clog",
+    "Overhang Sagging",
+    "Spaghetti",
+    "Stringing",
+    "Under Extrusion",
+    "Warping",
+    "Z-Banding",
+    "Bed Adhesion",
+    "Over Extrusion"
 ];
 
 export const useOnnxModel = () => {
@@ -111,17 +122,14 @@ export const useOnnxModel = () => {
             const outputData = await session.run(feeds);
             const output = outputData[session.outputNames[0]].data;
 
-            // Softmax
-            const expValues = Array.from(output as Float32Array).map(v => Math.exp(v as number));
-            const sumExp = expValues.reduce((a, b) => a + b, 0);
-            const probs = expValues.map(v => v / sumExp);
+            const probs = Array.from(output as Float32Array);
 
             // Format results
             const results = probs.map((prob, index) => ({
                 classIndex: index,
                 className: CLASSES[index] || `class_${index}`,
                 probability: prob
-            })).sort((a, b) => b.probability - a.probability);
+            })).sort((a, b) => b.probability - a.probability).slice(0, CLASSES.length);
 
             setIsInferencing(false);
             return results;
