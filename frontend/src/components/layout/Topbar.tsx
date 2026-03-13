@@ -1,12 +1,11 @@
 import React from 'react';
-import { Search, Bell, User, LayoutGrid, History as HistoryIcon, Briefcase } from 'lucide-react';
-import type { AppPage } from '../../App';
+import { Search, Bell, User, LayoutGrid } from 'lucide-react';
+
 
 interface TopbarProps {
-    currentPage?: AppPage;
 }
 
-export const Topbar: React.FC<TopbarProps> = ({ currentPage }) => {
+export const Topbar: React.FC<TopbarProps> = () => {
     return (
         <header className="h-16 flex items-center justify-between px-8 bg-background-light dark:bg-background-dark border-b border-secondary/10 sticky top-0 z-40">
             {/* Left: Search */}
@@ -21,23 +20,8 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage }) => {
                 </div>
             </div>
 
-            {/* Center: Tabs (Only for Chat page) */}
-            {currentPage === 'chat' && (
-                <div className="flex items-center gap-1 bg-secondary/5 p-1 rounded-xl border border-secondary/10">
-                    <button 
-                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-bold bg-white dark:bg-secondary/20 shadow-sm text-cta transition-all"
-                    >
-                        <Briefcase size={16} />
-                        工具
-                    </button>
-                    <button 
-                        className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium text-text-light/40 hover:text-text-light dark:hover:text-text-dark hover:bg-white/50 dark:hover:bg-secondary/10 transition-all"
-                    >
-                        <HistoryIcon size={16} />
-                        历史
-                    </button>
-                </div>
-            )}
+            {/* Center: Spacer */}
+            <div className="flex-1" />
 
             {/* Right: Actions */}
             <div className="flex items-center gap-6">

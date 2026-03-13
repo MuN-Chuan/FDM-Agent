@@ -9,7 +9,8 @@ import {
     CreditCard,
     ChevronRight,
     HelpCircle,
-    MessageCircle
+    MessageCircle,
+    Briefcase
 } from 'lucide-react';
 import type { AppPage } from '../../App';
 
@@ -35,54 +36,109 @@ const subItems = [
     { label: 'Gcode 清理', id: 'clean' },
 ];
 
+const mockHistory = [
+    { title: '打印表面粗糙问题', time: '10分钟前' },
+    { title: 'PETG 拉丝参数优化', time: '昨天' },
+    { title: '喷嘴堵塞排查步骤', time: '2天前' },
+    { title: '首层粘连性测试', time: '1周前' },
+];
+
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => {
+    const [activeTab, setActiveTab] = React.useState<'tools' | 'history'>('tools');
+
     return (
         <aside className="h-screen w-[240px] shrink-0 bg-primary border-r border-secondary/20 flex flex-col z-50">
             <div className="p-6">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 mb-6">
                     <div className="w-8 h-8 bg-cta rounded flex items-center justify-center">
                         <Zap className="text-white w-5 h-5" />
                     </div>
                     <span className="text-xl font-heading font-bold text-text-dark tracking-tight">FDM-Web</span>
                 </div>
+
+                {/* Tab Switcher */}
+                <div className="flex bg-secondary/10 p-1 rounded-lg">
+                    <button 
+                        onClick={() => setActiveTab('tools')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-md text-xs font-bold transition-all ${
+                            activeTab === 'tools' ? 'bg-white dark:bg-cta/20 text-cta shadow-sm' : 'text-text-dark/40 hover:text-text-dark/60'
+                        }`}
+                    >
+                        <Briefcase size={14} />
+                        工具
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('history')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-md text-xs font-bold transition-all ${
+                            activeTab === 'history' ? 'bg-white dark:bg-cta/20 text-cta shadow-sm' : 'text-text-dark/40 hover:text-text-dark/60'
+                        }`}
+                    >
+                        <History size={14} />
+                        历史
+                    </button>
+                </div>
             </div>
 
             <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-                {navItems.map((item) => {
-                    const isActive = item.page === currentPage;
-                    const isClickable = !!item.page;
-                    return (
-                        <button
-                            key={item.id}
-                            onClick={() => item.page && onNavigate(item.page)}
-                            disabled={!isClickable}
-                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
-                                isActive 
-                                    ? 'bg-cta/10 text-cta' 
-                                    : isClickable 
-                                        ? 'text-text-dark/60 hover:text-text-dark hover:bg-secondary/20'
-                                        : 'text-text-dark/40 cursor-not-allowed opacity-50'
-                            }`}
-                        >
-                            <item.icon size={20} />
-                            <span className="font-medium text-sm">{item.label}</span>
+                {activeTab === 'tools' ? (
+                    <>
+                        {navItems.map((item) => {
+                            const isActive = item.page === currentPage;
+                            const isClickable = !!item.page;
+                            return (
+                                <button
+                                    key={item.id}
+                                    onClick={() => item.page && onNavigate(item.page)}
+                                    disabled={!isClickable}
+                                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+                                        isActive 
+                                            ? 'bg-cta/10 text-cta' 
+                                            : isClickable 
+                                                ? 'text-text-dark/60 hover:text-text-dark hover:bg-secondary/20'
+                                                : 'text-text-dark/40 cursor-not-allowed opacity-50'
+                                    }`}
+                                >
+                                    <item.icon size={20} />
+                                    <span className="font-medium text-sm">{item.label}</span>
+                                </button>
+                            );
+                        })}
+
+                        <div className="pt-6 pb-2 px-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-dark/40">未来工具</span>
+                        </div>
+
+                        {subItems.map((item) => (
+                            <button
+                                key={item.id}
+                                className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-text-dark/40 hover:text-text-dark/80 hover:bg-secondary/20 transition-colors cursor-pointer grayscale"
+                            >
+                                <span className="text-sm">{item.label}</span>
+                                <ChevronRight size={14} />
+                            </button>
+                        ))}
+                    </>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="px-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-dark/40">最近会话</span>
+                        </div>
+                        <div className="space-y-1">
+                            {mockHistory.map((item, idx) => (
+                                <button
+                                    key={idx}
+                                    className="w-full flex flex-col items-start px-3 py-2.5 rounded-lg text-text-dark/60 hover:text-text-dark hover:bg-secondary/10 transition-all text-left"
+                                >
+                                    <span className="text-sm font-medium line-clamp-1">{item.title}</span>
+                                    <span className="text-[10px] opacity-40 mt-1">{item.time}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <button className="w-full mt-4 flex items-center justify-center gap-2 py-2 text-xs font-bold text-cta hover:bg-cta/5 rounded-lg transition-colors">
+                            查看全部历史
                         </button>
-                    );
-                })}
-
-                <div className="pt-6 pb-2 px-3">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-text-dark/40">未来工具</span>
-                </div>
-
-                {subItems.map((item) => (
-                    <button
-                        key={item.id}
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-text-dark/40 hover:text-text-dark/80 hover:bg-secondary/20 transition-colors cursor-pointer grayscale"
-                    >
-                        <span className="text-sm">{item.label}</span>
-                        <ChevronRight size={14} />
-                    </button>
-                ))}
+                    </div>
+                )}
             </nav>
 
             <div className="p-4 border-t border-secondary/20 space-y-1">

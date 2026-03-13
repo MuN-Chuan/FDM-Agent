@@ -158,6 +158,7 @@ export const AIChatPage: React.FC = () => {
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [showDiffPanel, setShowDiffPanel] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [thoughtMode, setThoughtMode] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -365,91 +366,132 @@ export const AIChatPage: React.FC = () => {
                 {/* Sticky Input Area at Bottom */}
                 <div className="absolute bottom-0 left-0 right-0 px-6 pb-6 pt-10 bg-gradient-to-t from-background-light dark:from-background-dark via-background-light/95 dark:via-background-dark/95 to-transparent pointer-events-none">
                     <div className="max-w-4xl mx-auto w-full pointer-events-auto">
-                        <div className="bg-white dark:bg-secondary/10 border border-secondary/20 rounded-3xl shadow-xl flex flex-col overflow-hidden focus-within:border-cta/40 focus-within:ring-2 focus-within:ring-cta/10 transition-all">
-                            
-                            {/* Inside Input Preview Area (ChatGPT Style) */}
-                            {(pendingImage || presetFileName) && (
-                                <div className="px-4 pt-4 flex flex-wrap gap-3">
-                                    {pendingImage && (
-                                        <div className="relative group">
-                                            <img src={pendingImage.previewUrl} alt="preview" className="h-14 w-14 rounded-xl object-cover border border-secondary/20 shadow-sm" />
-                                            <button
-                                                onClick={() => setPendingImage(null)}
-                                                className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-secondary-900 dark:bg-white text-white dark:text-secondary-900 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                        
+                        {/* Previews (Image & Presets) moved just above the input box */}
+                        {(pendingImage || presetFileName) && (
+                            <div className="flex gap-4 mb-3 animate-in fade-in slide-in-from-bottom-2 px-6">
+                                {pendingImage && (
+                                    <div className="relative group/img">
+                                        <img 
+                                            src={pendingImage.previewUrl} 
+                                            alt="Preview" 
+                                            className="w-16 h-16 object-cover rounded-xl border-2 border-cta/20 shadow-lg"
+                                        />
+                                        <button 
+                                            onClick={() => setPendingImage(null)}
+                                            className="absolute -top-2 -right-2 p-1 bg-background-dark text-white rounded-full shadow-md hover:bg-cta transition-colors opacity-0 group-hover/img:opacity-100"
+                                        >
+                                            <X size={10} />
+                                        </button>
+                                    </div>
+                                )}
+                                {presetFileName && (
+                                    <div className="relative group/preset flex items-center gap-2 px-3 py-2 bg-cta/10 border border-cta/20 rounded-xl shadow-sm">
+                                        <FileArchive size={16} className="text-cta shrink-0" />
+                                        <div className="min-w-0">
+                                            <p className="text-[10px] font-bold text-cta truncate uppercase tracking-tight">已选预设</p>
+                                            <p className="text-xs text-cta/70 truncate font-medium">{presetFileName}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 ml-1">
+                                            <button onClick={() => setIsModalOpen(true)} className="p-1 rounded hover:bg-cta/10 text-cta" title="修改配置">
+                                                <Settings size={14} />
+                                            </button>
+                                            <button 
+                                                onClick={() => { setPresetFileName(null); updateSelection({ printer: null, process: null, filaments: [], defectFilaments: [] }); }} 
+                                                className="p-1 rounded hover:bg-cta/10 text-cta"
                                             >
-                                                <X size={12} />
+                                                <X size={14} />
                                             </button>
                                         </div>
-                                    )}
-                                    {presetFileName && (
-                                        <div className="relative group flex items-center gap-2 px-3 py-2 bg-cta/10 border border-cta/20 rounded-xl max-w-[200px]">
-                                            <FileArchive size={16} className="text-cta shrink-0" />
-                                            <div className="min-w-0">
-                                                <p className="text-[10px] font-bold text-cta truncate uppercase tracking-tight">已选预设</p>
-                                                <p className="text-xs text-cta/70 truncate font-medium">{presetFileName}</p>
-                                            </div>
-                                            <div className="flex items-center gap-1.5 ml-1">
-                                                <button onClick={() => setIsModalOpen(true)} className="p-1 rounded hover:bg-cta/10 text-cta" title="修改配置">
-                                                    <Settings size={14} />
-                                                </button>
-                                                <button 
-                                                    onClick={() => { setPresetFileName(null); updateSelection({ printer: null, process: null, filaments: [], defectFilaments: [] }); }} 
-                                                    className="p-1 rounded hover:bg-cta/10 text-cta"
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
+                        {/* Gemini-style pill container */}
+                        <div className="bg-white dark:bg-secondary/10 border border-secondary/20 rounded-[32px] shadow-xl flex flex-col overflow-hidden focus-within:border-cta/40 focus-within:ring-4 focus-within:ring-cta/10 transition-all">
                             {/* Text Input Row */}
-                            <div className="flex items-end gap-2 px-3 py-3">
-                                <div className="flex items-center gap-0.5 mb-1.5 ml-1">
+                            <textarea
+                                ref={textareaRef}
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                placeholder="描述您的问题或上传预设..."
+                                disabled={isStreaming}
+                                rows={1}
+                                className="w-full bg-transparent px-6 pt-5 pb-2 text-base text-text-light dark:text-text-dark placeholder-text-light/40 dark:placeholder-text-dark/40 resize-none outline-none disabled:opacity-50 font-body leading-relaxed min-h-[60px] max-h-[300px]"
+                            />
+
+                            {/* Actions Row (Attachments, Model, Send) */}
+                            <div className="flex items-center justify-between px-4 pb-3 pt-1">
+                                {/* Left: Attachments */}
+                                <div className="flex items-center gap-1">
                                     <button
                                         onClick={() => imageInputRef.current?.click()}
                                         disabled={isStreaming}
-                                        className="p-2 rounded-xl text-text-light/40 hover:text-cta hover:bg-cta/10 transition-colors disabled:opacity-30"
+                                        className="p-2.5 rounded-full text-text-light/60 hover:text-cta hover:bg-cta/5 transition-all relative group"
                                         title="上传图片 (JPG, PNG, WebP)"
                                     >
                                         <ImageIcon size={20} />
+                                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-background-dark text-white text-[10px] rounded pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                            上传图片 (JPG, PNG, WebP)
+                                        </span>
                                     </button>
                                     <button
                                         onClick={() => fileInputRef.current?.click()}
                                         disabled={isStreaming || isParsingPreset}
-                                        className="p-2 rounded-xl text-text-light/40 hover:text-cta hover:bg-cta/10 transition-colors disabled:opacity-30"
+                                        className="p-2.5 rounded-full text-text-light/60 hover:text-cta hover:bg-cta/5 transition-all relative group"
                                         title="上传预设文件 (.bbscfg, .orca_printer)"
                                     >
-                                        {isParsingPreset ? <Loader2 size={20} className="animate-spin" /> : <Paperclip size={20} />}
+                                        {isParsingPreset ? <Loader2 size={20} className="animate-spin text-cta" /> : <Paperclip size={20} />}
+                                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-background-dark text-white text-[10px] rounded pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                            上传预设包 (.bbscfg, .zip)
+                                        </span>
+                                    </button>
+
+                                    <button 
+                                        onClick={() => setThoughtMode(!thoughtMode)}
+                                        className={`p-2.5 rounded-full transition-all relative group ${
+                                            thoughtMode ? 'text-cta bg-cta/10' : 'text-text-light/60 hover:text-cta hover:bg-cta/5'
+                                        }`}
+                                    >
+                                        <Brain size={20} />
+                                        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-background-dark text-white text-[10px] rounded pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                                            {thoughtMode ? '已开启深度思考' : '开启深度思考'}
+                                        </span>
                                     </button>
                                 </div>
 
-                                <textarea
-                                    ref={textareaRef}
-                                    value={input}
-                                    onChange={e => setInput(e.target.value)}
-                                    onKeyDown={handleKeyDown}
-                                    placeholder="描述您的问题或上传预设..."
-                                    disabled={isStreaming}
-                                    rows={1}
-                                    className="flex-1 bg-transparent px-2 pt-2.5 pb-2 text-sm text-text-light dark:text-text-dark placeholder-text-light/40 dark:placeholder-text-dark/40 resize-none outline-none disabled:opacity-50 font-body leading-relaxed"
-                                    style={{ minHeight: '44px', maxHeight: '180px' }}
-                                />
-
-                                <div className="flex items-center gap-2 mb-1 mr-1">
-                                    {presetValidationError && (
-                                        <div className="p-2 text-amber-500" title={presetValidationError}>
-                                            <AlertTriangle size={20} />
-                                        </div>
-                                    )}
-                                    <button
-                                        onClick={() => sendMessage(input)}
-                                        disabled={isStreaming || (!input.trim() && !pendingImage) || !!presetValidationError}
-                                        className="bg-cta text-white p-2.5 rounded-2xl hover:bg-cta/90 transition-all disabled:opacity-20 disabled:cursor-not-allowed shrink-0 shadow-lg shadow-cta/20 flex items-center justify-center"
-                                    >
-                                        {isStreaming ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+                                {/* Right: Model Selection & Send */}
+                                <div className="flex items-center gap-3">
+                                    {/* Model Selector Indicator */}
+                                    <button className="flex items-center gap-2 px-3 py-1.5 text-[12px] font-bold text-text-light/60 hover:text-text-light dark:hover:text-text-dark bg-secondary/10 hover:bg-secondary/20 rounded-full transition-all border border-secondary/10">
+                                        <Sparkles size={14} className="text-cta" />
+                                        <span>GPT-4o Flash</span>
+                                        <ChevronDown size={14} />
                                     </button>
+
+                                    <div className="flex items-center gap-2">
+                                        {presetValidationError && (
+                                            <div className="group relative">
+                                                <AlertTriangle size={20} className="text-yellow-500 animate-pulse" />
+                                                <span className="absolute bottom-full right-0 mb-2 w-48 px-3 py-2 bg-background-dark text-white text-[10px] rounded shadow-xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50 border border-yellow-500/30">
+                                                    预设选择不完整或不匹配，请点击预设文件修正后再发送。
+                                                </span>
+                                            </div>
+                                        )}
+                                        <button
+                                            onClick={() => sendMessage(input)}
+                                            disabled={isStreaming || (!input.trim() && !pendingImage) || !!presetValidationError}
+                                            className={`p-2.5 rounded-full transition-all shadow-md ${
+                                                isStreaming || (!input.trim() && !pendingImage) || !!presetValidationError
+                                                    ? 'bg-secondary/20 text-text-light/20 cursor-not-allowed border border-secondary/10'
+                                                    : 'bg-cta text-white hover:bg-cta-hover hover:scale-105 active:scale-95 shadow-lg shadow-cta/20'
+                                            }`}
+                                        >
+                                            {isStreaming ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
