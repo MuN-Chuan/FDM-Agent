@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 import { UploadSystem } from '../features/diagnosis/UploadSystem';
 import type { DiagnosisMode, DiagnosisPayload } from '../features/diagnosis/UploadSystem';
 import { AnalysisTimeline } from '../features/diagnosis/AnalysisTimeline';
@@ -26,6 +28,7 @@ export const DiagnosisDashboard: React.FC = () => {
 
     // AI Diagnosis results
     const [aiReasoning, setAiReasoning] = useState<string | null>(null);
+    const [aiThought, setAiThought] = useState<string | null>(null);
     const [modifications, setModifications] = useState<ParameterModification[]>([]);
     const [selectedDefectClasses, setSelectedDefectClasses] = useState<string[]>([]);
 
@@ -37,6 +40,8 @@ export const DiagnosisDashboard: React.FC = () => {
         try {
             const apiSettings = loadApiSettings();
             let accumulatedReasoning = "";
+            let accumulatedThought = "";
+            setAiThought(null);
 
             // Build detections payload based on selected classes
             const detectionsToSubmit = classesToUse.map(cls => {
@@ -58,7 +63,10 @@ export const DiagnosisDashboard: React.FC = () => {
                 },
                 api_settings: apiSettings
             }, (chunk) => {
-                if (chunk.type === 'text' && chunk.content) {
+                if (chunk.type === 'thought' && chunk.content) {
+                    accumulatedThought += chunk.content;
+                    setAiThought(accumulatedThought);
+                } else if (chunk.type === 'text' && chunk.content) {
                     accumulatedReasoning += chunk.content;
                     setAiReasoning(accumulatedReasoning);
                 } else if (chunk.type === 'done') {
@@ -135,6 +143,93 @@ export const DiagnosisDashboard: React.FC = () => {
     const handleParsingChange = (isParsing: boolean) => {
         if (isParsing) setTimelineStatus('parsing');
         else if (timelineStatus === 'parsing') setTimelineStatus('idle');
+    };
+
+    // Configurable renaming rule for exports
+    const RENAME_CONFIG = {
+        prefix: 'fix_',
+        suffix: ''
+    };
+
+    const handleDownloadPresets = async () => {
+        if (!currentPayload?.presetBundle) return;
+        
+        const zip = new JSZip();
+        const bundle = currentPayload.presetBundle;
+        const selected = currentPayload.presetSelection;
+        
+        const renamePreset = (oldName: string) => `${RENAME_CONFIG.prefix}${oldName}${RENAME_CONFIG.suffix}`;
+
+        // Helper to apply modifications to a JSON data object
+        const applyModifications = (data: any) => {
+            const newData = { ...data };
+            let hasChanges = false;
+            
+            // 1. Apply AI recommended parameter changes
+            modifications.forEach(mod => {
+                if (newData.hasOwnProperty(mod.name)) {
+                    const originalValue = newData[mod.name];
+                    let newValue: any = mod.new;
+                    
+                    if (typeof originalValue === 'number') {
+                        newValue = parseFloat(mod.new);
+                        if (isNaN(newValue)) newValue = mod.new;
+                    } else if (typeof originalValue === 'boolean') {
+                        newValue = mod.new.toLowerCase() === 'true';
+                    }
+                    
+                    if (newData[mod.name] !== newValue) {
+                        newData[mod.name] = newValue;
+                        hasChanges = true;
+                    }
+                }
+            });
+
+            // 2. Update internal metadata names to match the export filename
+            // ONLY IF we actually changed any technical parameters
+            if (hasChanges) {
+                const metadataFields = ['name', 'printer_settings_id', 'filament_settings_id', 'print_settings_id'];
+                metadataFields.forEach(field => {
+                    if (typeof newData[field] === 'string') {
+                        newData[field] = renamePreset(newData[field]);
+                    }
+                });
+            }
+
+            return { newData, hasChanges };
+        };
+
+        let filesAdded = 0;
+        const allPresets = [...bundle.printers, ...bundle.filaments, ...bundle.processes];
+        
+        allPresets.forEach(preset => {
+            // Check if this preset is selected
+            const isSelectedPrinter = selected?.printer?.path === preset.path;
+            const isSelectedProcess = selected?.process?.path === preset.path;
+            const isSelectedFilament = selected?.filaments.some(f => f.path === preset.path);
+            
+            if (isSelectedPrinter || isSelectedProcess || isSelectedFilament) {
+                const { newData, hasChanges } = applyModifications(preset.data);
+                
+                // Only include if there were actual changes mapped successfully
+                if (hasChanges) {
+                    // Reconstruct the display name for the file
+                    const originalName = preset.name;
+                    const newFileName = `${renamePreset(originalName)}.json`;
+                    
+                    zip.file(newFileName, JSON.stringify(newData, null, 4));
+                    filesAdded++;
+                }
+            }
+        });
+
+        if (filesAdded === 0) {
+            alert('未能在预设中匹配到可修改的参数，请检查 AI 建议是否与预设版本匹配。');
+            return;
+        }
+
+        const content = await zip.generateAsync({ type: 'blob' });
+        saveAs(content, `fixed_presets_${new Date().getTime()}.zip`);
     };
 
     const showVisualization = diagnosisMode === 'detect' || diagnosisMode === 'deep';
@@ -243,13 +338,20 @@ export const DiagnosisDashboard: React.FC = () => {
                                 <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-6">
                                     <AIResultMarkdown
                                         content={aiReasoning || ''}
+                                        thought={aiThought || undefined}
                                         isLoading={timelineStatus === 'analyzing'}
                                         modelName={loadApiSettings().model_name}
                                     />
 
                                     {diagnosisMode === 'deep' && (
                                         <div className="pt-6 border-t border-secondary/10 flex flex-col gap-3">
-                                            <button className="btn-cta w-full justify-center">下载修复后的预设包</button>
+                                            <button 
+                                                onClick={handleDownloadPresets}
+                                                disabled={!currentPayload?.presetBundle || modifications.length === 0}
+                                                className="btn-cta w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                下载修复后的预设包
+                                            </button>
                                             <button className="px-4 py-3 text-sm font-bold text-text-light/60 hover:text-cta transition-colors text-center">
                                                 生成详细 PDF 诊断报告
                                             </button>

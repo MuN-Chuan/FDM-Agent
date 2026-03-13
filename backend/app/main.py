@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import diagnosis
+from app.routers import diagnosis, chat
 
 app = FastAPI(
     title="FDM AI Diagnosis API",
@@ -18,6 +18,7 @@ app.add_middleware(
 
 # Include API routers
 app.include_router(diagnosis.router)
+app.include_router(chat.router)
 
 @app.get("/health")
 async def health_check():

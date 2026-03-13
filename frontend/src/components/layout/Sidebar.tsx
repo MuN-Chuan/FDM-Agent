@@ -8,12 +8,20 @@ import {
     FileText,
     CreditCard,
     ChevronRight,
-    HelpCircle
+    HelpCircle,
+    MessageCircle
 } from 'lucide-react';
+import type { AppPage } from '../../App';
 
-const navItems = [
+interface SidebarProps {
+    currentPage: AppPage;
+    onNavigate: (page: AppPage) => void;
+}
+
+const navItems: { icon: React.ElementType; label: string; id: AppPage | string; page?: AppPage }[] = [
     { icon: LayoutDashboard, label: '首页 / 工作台', id: 'dashboard' },
-    { icon: Zap, label: 'AI 诊断', id: 'diagnosis', active: true },
+    { icon: Zap, label: 'AI 诊断', id: 'diagnosis', page: 'diagnosis' },
+    { icon: MessageCircle, label: 'AI 答疑', id: 'chat', page: 'chat' },
     { icon: History, label: '历史记录', id: 'history' },
     { icon: FileText, label: '预设管理', id: 'presets' },
     { icon: BarChart3, label: '报告中心', id: 'reports' },
@@ -27,7 +35,7 @@ const subItems = [
     { label: 'Gcode 清理', id: 'clean' },
 ];
 
-export const Sidebar: React.FC = () => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => {
     return (
         <aside className="h-screen w-[240px] shrink-0 bg-primary border-r border-secondary/20 flex flex-col z-50">
             <div className="p-6">
@@ -40,18 +48,27 @@ export const Sidebar: React.FC = () => {
             </div>
 
             <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-                {navItems.map((item) => (
-                    <button
-                        key={item.id}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ${item.active
-                            ? 'bg-cta/10 text-cta'
-                            : 'text-text-dark/60 hover:text-text-dark hover:bg-secondary/20'
+                {navItems.map((item) => {
+                    const isActive = item.page === currentPage;
+                    const isClickable = !!item.page;
+                    return (
+                        <button
+                            key={item.id}
+                            onClick={() => item.page && onNavigate(item.page)}
+                            disabled={!isClickable}
+                            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+                                isActive 
+                                    ? 'bg-cta/10 text-cta' 
+                                    : isClickable 
+                                        ? 'text-text-dark/60 hover:text-text-dark hover:bg-secondary/20'
+                                        : 'text-text-dark/40 cursor-not-allowed opacity-50'
                             }`}
-                    >
-                        <item.icon size={20} />
-                        <span className="font-medium text-sm">{item.label}</span>
-                    </button>
-                ))}
+                        >
+                            <item.icon size={20} />
+                            <span className="font-medium text-sm">{item.label}</span>
+                        </button>
+                    );
+                })}
 
                 <div className="pt-6 pb-2 px-3">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-text-dark/40">未来工具</span>

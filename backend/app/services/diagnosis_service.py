@@ -24,7 +24,6 @@ class DiagnosisService:
             else:
                 filtered[k] = v
         return filtered
-
     def _build_prompt(self, detections: List[Detection], description: Optional[str], preset_data: PresetData) -> str:
         prompt = "你是一个专业的 FDM (熔融沉积成型) 3D打印机调参专家。请分析以下打印状况，并提供切片参数的修改建议。\n\n"
         
@@ -33,6 +32,8 @@ class DiagnosisService:
             for d in detections:
                 prompt += f"- 缺陷类型: {d.label} (置信度: {d.confidence:.2f})\n"
             prompt += "\n"
+        else:
+            prompt += "【注意】: 当前未提供视觉识别结果，请完全基于用户的文字描述和提供的切片参数进行分析诊断。\n\n"
             
         if description:
             prompt += f"【用户描述补充】:\n{description}\n\n"
@@ -109,7 +110,7 @@ class DiagnosisService:
             stream = await client.chat.completions.create(
                 model=model_name,
                 messages=[
-                    {"role": "system", "content": "你只能输出经过解析的 JSON 格式文本，不要包含任何如 ```json 的 Markdown 代码块包裹，只输出原生 JSON。"},
+                    {"role": "system", "content": "你是一个 3D 打印助手，请总是以原生 JSON 格式输出响应，不要包含 Markdown 代码块。"},
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.3,
@@ -119,18 +120,27 @@ class DiagnosisService:
             
             full_text = ""
             async for chunk in stream:
+                if not chunk.choices: continue
+                
+                # Capture reasoning/thinking process if supported by model (e.g. DeepSeek R1)
+                reasoning = getattr(chunk.choices[0].delta, 'reasoning_content', None)
+                if reasoning:
+                    yield f"data: {json.dumps({'type': 'thought', 'content': reasoning}, ensure_ascii=False)}\n\n"
+
                 content = chunk.choices[0].delta.content
                 if content:
                     full_text += content
-                    # print("Yielding chunk...", flush=True)  # Temporarily track
                     yield f"data: {json.dumps({'type': 'text', 'content': content}, ensure_ascii=False)}\n\n"
 
             print(f"Finished receiving stream. Total characters: {len(full_text)}")
-            if not full_text:
-                print("Warning: Stream returned no content.")
-
+            
             # Final cleanup and parsing
             clean_text = full_text.strip()
+            
+            if not clean_text:
+                yield f"data: {json.dumps({'type': 'error', 'message': 'AI 未能生成有效的诊断结论，请尝试补充更多描述或上传图片。'}, ensure_ascii=False)}\n\n"
+                return
+
             if clean_text.startswith("```json"):
                 clean_text = clean_text.replace("```json", "", 1)
             if clean_text.endswith("```"):
@@ -166,7 +176,7 @@ class DiagnosisService:
         api_settings: Optional[ApiSettings] = None
     ) -> DiagnosisResponse:
         
-        system_prompt = "你只能输出经过解析的 JSON 格式文本，不要包含任何如 ```json 的 Markdown 代码块包裹，只输出原生 JSON。"
+        system_prompt = "你是一个 3D 打印助手，请总是以原生 JSON 格式输出响应，不要包含 Markdown 代码块。"
         user_prompt = self._build_prompt(detections, description, preset_data)
 
         if safety_constraints:
@@ -202,7 +212,7 @@ class DiagnosisService:
 
             if not result_text:
                 return DiagnosisResponse(
-                    reasoning_markdown="### ❌ AI 返回内容为空\n大语言模型未返回任何有效信息。这通常是因为模型负载过高或您的 Prompt 过长被截断。",
+                    reasoning_markdown="### ❌ AI 返回内容为空\n模型未返回任何有效信息。请尝试补充更多描述或上传图片。",
                     modifications=[]
                 )
             
@@ -216,6 +226,12 @@ class DiagnosisService:
                 clean_text = clean_text.replace("```", "", 1)
             
             clean_text = clean_text.strip()
+            
+            if not clean_text:
+                return DiagnosisResponse(
+                    reasoning_markdown="### ❌ AI 返回空响应\n模型返回的内容经过清理后为空，请尝试更换模型或补充更多信息。",
+                    modifications=[]
+                )
 
             try:
                 result_json = json.loads(clean_text)
