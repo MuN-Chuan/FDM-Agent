@@ -14,6 +14,8 @@ import { ParameterDiffViewer } from '../features/diagnosis/ParameterDiffViewer';
 import { ApiSettingsModal } from '../features/diagnosis/ApiSettingsModal';
 import { PresetSelectionModal } from '../features/diagnosis/PresetSelectionModal';
 import { DefectRecognitionModal } from '../features/diagnosis/DefectRecognitionModal';
+import { chatStorage } from '../api/chatStorage';
+import type { ChatSessionData } from '../api/chatStorage';
 
 // ─── Rename Config ─────────────────────────────────────────────────────────
 const RENAME_CONFIG = { prefix: 'fix_', suffix: '' };
@@ -282,7 +284,12 @@ const MessageBubble: React.FC<{
 };
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-export const AIChatPage: React.FC = () => {
+interface AIChatPageProps {
+    currentSessionId: string | null;
+    onSessionChange: (id: string | null) => void;
+}
+
+export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSessionChange }) => {
     const [messages, setMessages] = useState<UIMessage[]>([{
         id: 'welcome',
         role: 'assistant',
@@ -309,6 +316,58 @@ export const AIChatPage: React.FC = () => {
     const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
     const { parsePresetFile, isParsing: isParsingPreset, bundle, validateSelection, selection, updateSelection } = usePresetParser();
+
+    // ─── Persistence Logic ────────────────────────────────────────────────
+    // Load session
+    useEffect(() => {
+        if (currentSessionId) {
+            const session = chatStorage.getSession(currentSessionId);
+            if (session) {
+                setMessages(session.messages);
+                setModifications(session.modifications || []);
+                setPresetFileName(session.presetFileName || null);
+                // Note: selection state is tricky because usePresetParser maintains its own state.
+                // We'll update the hook's selection if the hook provides a setter or we bypass it.
+                // For now, we'll try to sync it if possible.
+                if (session.selection) {
+                    updateSelection(session.selection);
+                }
+            }
+        } else {
+            // Reset to default for new chat
+            setMessages([{
+                id: 'welcome',
+                role: 'assistant',
+                content: '你好！我是 FDM 3D 打印 AI 顾问。\n\n我可以帮助你：\n- 诊断打印缺陷（拉丝、翘边、层分离等）\n- 优化切片参数\n- 分析你上传的打印图片\n- 根据你的预设给出具体参数建议\n\n你可以上传图片或预设文件，然后直接提问！',
+            }]);
+            setModifications([]);
+            setPresetFileName(null);
+            setPendingFiles([]);
+            setPendingImage(null);
+            // selection reset is handled by the initial state of the hook in normal cases
+        }
+    }, [currentSessionId]);
+
+    // Auto-save
+    useEffect(() => {
+        // Only save if we have messages beyond the welcome message OR if we have a currentSessionId
+        if (!currentSessionId && messages.length <= 1) return;
+
+        // If no ID yet (first message), handleSend will create it.
+        if (currentSessionId) {
+            const currentData = chatStorage.getSession(currentSessionId);
+            const sessionData: ChatSessionData = {
+                id: currentSessionId,
+                title: currentData?.title || messages.find(m => m.role === 'user')?.content.substring(0, 30) || '新对话',
+                timestamp: Date.now(),
+                messages,
+                modifications,
+                selection,
+                presetFileName
+            };
+            chatStorage.saveSession(sessionData);
+        }
+    }, [messages, modifications, selection, presetFileName, currentSessionId]);
 
     const handleScroll = () => {
         if (!scrollContainerRef.current) return;
@@ -401,6 +460,13 @@ export const AIChatPage: React.FC = () => {
     const sendMessage = useCallback(async (text: string, requestMods = false, overrideHistory?: UIMessage[]) => {
         if ((!text.trim() && !pendingImage && pendingFiles.length === 0) || presetValidationError) return;
         if (isStreaming) return;
+
+        // NEW: If no session ID, generate a new one
+        let sessionId = currentSessionId;
+        if (!sessionId) {
+            sessionId = `chat-${Date.now()}`;
+            onSessionChange(sessionId);
+        }
 
         const currentSettings = loadApiSettings();
         if (pendingImage && !isVisionModel(currentSettings.model_name)) {

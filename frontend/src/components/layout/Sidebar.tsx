@@ -13,10 +13,14 @@ import {
     Briefcase
 } from 'lucide-react';
 import type { AppPage } from '../../App';
+import { chatStorage } from '../../api/chatStorage';
+import type { ChatSessionMetadata } from '../../api/chatStorage';
 
 interface SidebarProps {
     currentPage: AppPage;
     onNavigate: (page: AppPage) => void;
+    currentSessionId: string | null;
+    onSessionChange: (id: string | null) => void;
 }
 
 const navItems: { icon: React.ElementType; label: string; id: AppPage | string; page?: AppPage }[] = [
@@ -36,15 +40,25 @@ const subItems = [
     { label: 'Gcode 清理', id: 'clean' },
 ];
 
-const mockHistory = [
-    { title: '打印表面粗糙问题', time: '10分钟前' },
-    { title: 'PETG 拉丝参数优化', time: '昨天' },
-    { title: '喷嘴堵塞排查步骤', time: '2天前' },
-    { title: '首层粘连性测试', time: '1周前' },
-];
-
-export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, currentSessionId, onSessionChange }) => {
     const [activeTab, setActiveTab] = React.useState<'tools' | 'history'>('tools');
+    const [history, setHistory] = React.useState<ChatSessionMetadata[]>([]);
+
+    React.useEffect(() => {
+        if (activeTab === 'history') {
+            setHistory(chatStorage.listSessions());
+        }
+    }, [activeTab, currentSessionId]);
+
+    const handleNewChat = () => {
+        onSessionChange(null);
+        onNavigate('chat');
+    };
+
+    const handleSessionClick = (id: string) => {
+        onSessionChange(id);
+        onNavigate('chat');
+    };
 
     return (
         <aside className="h-screen w-[240px] shrink-0 bg-primary border-r border-secondary/20 flex flex-col z-50">
@@ -120,23 +134,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => 
                     </>
                 ) : (
                     <div className="space-y-4">
+                        <button 
+                            onClick={handleNewChat}
+                            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-cta hover:bg-cta/5 border border-cta/20 transition-all font-bold text-xs"
+                        >
+                            <Zap size={14} />
+                            新开对话
+                        </button>
+
                         <div className="px-3">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-text-dark/40">最近会话</span>
                         </div>
                         <div className="space-y-1">
-                            {mockHistory.map((item, idx) => (
+                            {history.length > 0 ? history.map((item) => (
                                 <button
-                                    key={idx}
-                                    className="w-full flex flex-col items-start px-3 py-2.5 rounded-lg text-text-dark/60 hover:text-text-dark hover:bg-secondary/10 transition-all text-left"
+                                    key={item.id}
+                                    onClick={() => handleSessionClick(item.id)}
+                                    className={`w-full flex flex-col items-start px-3 py-2.5 rounded-lg transition-all text-left ${
+                                        currentSessionId === item.id 
+                                            ? 'bg-cta/10 text-cta' 
+                                            : 'text-text-dark/60 hover:text-text-dark hover:bg-secondary/10'
+                                    }`}
                                 >
                                     <span className="text-sm font-medium line-clamp-1">{item.title}</span>
-                                    <span className="text-[10px] opacity-40 mt-1">{item.time}</span>
+                                    <span className="text-[10px] opacity-40 mt-1">{new Date(item.timestamp).toLocaleString()}</span>
                                 </button>
-                            ))}
+                            )) : (
+                                <div className="px-3 py-8 text-center border border-dashed border-secondary/10 rounded-xl">
+                                    <p className="text-[11px] text-text-dark/30">暂无历史会话</p>
+                                </div>
+                            )}
                         </div>
-                        <button className="w-full mt-4 flex items-center justify-center gap-2 py-2 text-xs font-bold text-cta hover:bg-cta/5 rounded-lg transition-colors">
-                            查看全部历史
-                        </button>
                     </div>
                 )}
             </nav>
@@ -148,7 +176,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate }) => 
                 </button>
                 <button className="w-full flex items-center gap-3 px-3 py-2 text-text-dark/60 hover:text-text-dark rounded-lg transition-colors cursor-pointer">
                     <Settings size={20} />
-                    <span className="text-sm font-medium">设置</span>
+                    <span className="text-sm font-medium">设置中心</span>
                 </button>
             </div>
         </aside>
