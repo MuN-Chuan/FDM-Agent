@@ -1,5 +1,4 @@
 {
-    "inherits": "fdm_filament_common",
     "type": "filament",
     "name": "Generic PLA @Generic Bambu",
     "from": "system",

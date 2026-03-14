@@ -1,0 +1,30 @@
+{
+    "printer_technology": "ptFFF",
+    "bed_exclude_area": [
+        0.0,
+        0.0
+    ],
+    "curr_bed_type": "btPC",
+    "machine_end_gcode": "M104 S0 ; turn off temperature\\nG28 X0  ; home X axis\\nM84     ; disable motors\\n",
+    "printing_by_object_gcode": "",
+    "printer_notes": "",
+    "nozzle_flush_dataset": "0",
+    "gcode_flavor": "gcfMarlinLegacy",
+    "layer_change_gcode": "",
+    "time_lapse_gcode": "",
+    "wrapping_detection_gcode": "",
+    "machine_pause_gcode": "",
+    "template_custom_gcode": "",
+    "nozzle_diameter": "0.4",
+    "nozzle_volume": "{0.0}",
+    "printer_model": "",
+    "printer_variant": "",
+    "printer_settings_id": "",
+    "nozzle_volume_type": "NozzleVolumeType::nvtStandard",
+    "extruder_nozzle_stats": "",
+    "printer_extruder_id": "1",
+    "printer_extruder_variant": "Direct Drive Standard",
+    "machine_start_gcode": "G28 ; home all axes\\nG1 Z5 F5000 ; lift nozzle\\n",
+    "change_filament_gcode": "",
+    "skip_modified_gcodes": false
+}

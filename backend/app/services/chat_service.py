@@ -89,13 +89,13 @@ class ChatService:
 
             if printer:
                 filtered_printer = self._filter_preset(printer)
-                full_system_prompt += f"**机器 (Printer)**:\n```json\n{json.dumps(filtered_printer, ensure_ascii=False, indent=2)[:3000]}\n```\n\n"
+                full_system_prompt += f"**机器 (Printer)**:\n```json\n{json.dumps(filtered_printer, ensure_ascii=False, indent=2)}\n```\n\n"
             if process:
                 filtered_process = self._filter_preset(process)
-                full_system_prompt += f"**工艺 (Process)**:\n```json\n{json.dumps(filtered_process, ensure_ascii=False, indent=2)[:3000]}\n```\n\n"
+                full_system_prompt += f"**工艺 (Process)**:\n```json\n{json.dumps(filtered_process, ensure_ascii=False, indent=2)}\n```\n\n"
             for i, fil in enumerate(filaments):
                 filtered_fil = self._filter_preset(fil)
-                full_system_prompt += f"**材料 {i+1} (Filament)**:\n```json\n{json.dumps(filtered_fil, ensure_ascii=False, indent=2)[:2000]}\n```\n\n"
+                full_system_prompt += f"**材料 {i+1} (Filament)**:\n```json\n{json.dumps(filtered_fil, ensure_ascii=False, indent=2)}\n```\n\n"
 
         api_messages = [{"role": "system", "content": full_system_prompt}]
 

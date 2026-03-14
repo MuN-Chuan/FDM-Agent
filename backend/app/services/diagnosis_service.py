@@ -88,14 +88,13 @@ class DiagnosisService:
         """Streaming version of diagnosis that yields chunks of text and final JSON results."""
         # NEW: Expand presets with base profiles if they are incomplete diffs
         if preset_data:
-            slicer_hint = preset_data.slicer
             if preset_data.printer:
-                preset_data.printer = preset_inheritance_service.get_full_preset(preset_data.printer, "printer", slicer=slicer_hint)
+                preset_data.printer = preset_inheritance_service.get_full_preset(preset_data.printer, "printer")
             if preset_data.process:
-                preset_data.process = preset_inheritance_service.get_full_preset(preset_data.process, "process", slicer=slicer_hint)
+                preset_data.process = preset_inheritance_service.get_full_preset(preset_data.process, "process")
             new_filaments = []
             for fil in preset_data.filament:
-                new_filaments.append(preset_inheritance_service.get_full_preset(fil, "filament", slicer=slicer_hint))
+                new_filaments.append(preset_inheritance_service.get_full_preset(fil, "filament"))
             preset_data.filament = new_filaments
 
         user_prompt = self._build_prompt(detections, description, preset_data)
@@ -190,14 +189,13 @@ class DiagnosisService:
         
         # NEW: Expand presets with base profiles if they are incomplete diffs
         if preset_data:
-            slicer_hint = preset_data.slicer
             if preset_data.printer:
-                preset_data.printer = preset_inheritance_service.get_full_preset(preset_data.printer, "printer", slicer=slicer_hint)
+                preset_data.printer = preset_inheritance_service.get_full_preset(preset_data.printer, "printer")
             if preset_data.process:
-                preset_data.process = preset_inheritance_service.get_full_preset(preset_data.process, "process", slicer=slicer_hint)
+                preset_data.process = preset_inheritance_service.get_full_preset(preset_data.process, "process")
             new_filaments = []
             for fil in preset_data.filament:
-                new_filaments.append(preset_inheritance_service.get_full_preset(fil, "filament", slicer=slicer_hint))
+                new_filaments.append(preset_inheritance_service.get_full_preset(fil, "filament"))
             preset_data.filament = new_filaments
 
         system_prompt = "你是一个 3D 打印助手，请总是以原生 JSON 格式输出响应，不要包含 Markdown 代码块。"

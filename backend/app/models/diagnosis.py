@@ -6,7 +6,6 @@ class Detection(BaseModel):
     confidence: float = Field(..., description="Confidence score from the AI model (0.0 to 1.0)")
 
 class PresetData(BaseModel):
-    slicer: Optional[str] = Field(None, description="Identified slicer software (e.g. 'bambu', 'orca', 'creality')")
     printer: Dict[str, Any] = Field(default_factory=dict, description="Machine preset parameters")
     filament: List[Dict[str, Any]] = Field(default_factory=list, description="Material preset parameters")
     process: Dict[str, Any] = Field(default_factory=dict, description="Process/quality preset parameters")
