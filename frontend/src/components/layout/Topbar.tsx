@@ -3,11 +3,14 @@ import { Search, Bell, User, LayoutGrid } from 'lucide-react';
 
 
 interface TopbarProps {
+    isBorderless?: boolean;
 }
 
-export const Topbar: React.FC<TopbarProps> = () => {
+export const Topbar: React.FC<TopbarProps> = ({ isBorderless }) => {
     return (
-        <header className="h-16 flex items-center justify-between px-8 bg-background-light dark:bg-background-dark border-b border-secondary/10 sticky top-0 z-40">
+        <header className={`h-16 flex items-center justify-between px-8 bg-background-light dark:bg-background-dark sticky top-0 z-40 ${
+            isBorderless ? '' : 'border-b border-secondary/10'
+        }`}>
             {/* Left: Search */}
             <div className="flex items-center gap-4 flex-1 max-w-sm">
                 <div className="relative w-full">
@@ -15,7 +18,7 @@ export const Topbar: React.FC<TopbarProps> = () => {
                     <input
                         type="text"
                         placeholder="搜索功能或帮助文档..."
-                        className="w-full bg-secondary/5 border border-secondary/10 rounded-lg py-1.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-cta/20 focus:border-cta/40 transition-all font-body"
+                        className="w-full bg-secondary/5 border border-secondary/10 rounded-full py-1.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-cta/20 focus:border-cta/40 transition-all font-body"
                     />
                 </div>
             </div>

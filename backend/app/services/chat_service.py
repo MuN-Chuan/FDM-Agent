@@ -65,35 +65,43 @@ class ChatService:
         request_modifications: bool
     ) -> list:
         """Build the messages payload for the LLM API."""
-        api_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        full_system_prompt = SYSTEM_PROMPT
 
-        # Inject preset context as first assistant message if provided
+        # Inject preset context into system prompt if provided
         if preset_data:
-            preset_context = "【已加载用户预设文件】\n"
+            full_system_prompt += "\n\n【已加载用户预设文件上下文】\n"
             printer = preset_data.get("printer", {})
             process = preset_data.get("process", {})
             filaments = preset_data.get("filament", [])
 
             if printer:
                 filtered_printer = self._filter_preset(printer)
-                preset_context += f"**机器 (Printer)**:\n```json\n{json.dumps(filtered_printer, ensure_ascii=False, indent=2)[:3000]}\n```\n\n"
+                full_system_prompt += f"**机器 (Printer)**:\n```json\n{json.dumps(filtered_printer, ensure_ascii=False, indent=2)[:3000]}\n```\n\n"
             if process:
                 filtered_process = self._filter_preset(process)
-                preset_context += f"**工艺 (Process)**:\n```json\n{json.dumps(filtered_process, ensure_ascii=False, indent=2)[:3000]}\n```\n\n"
+                full_system_prompt += f"**工艺 (Process)**:\n```json\n{json.dumps(filtered_process, ensure_ascii=False, indent=2)[:3000]}\n```\n\n"
             for i, fil in enumerate(filaments):
                 filtered_fil = self._filter_preset(fil)
-                preset_context += f"**材料 {i+1} (Filament)**:\n```json\n{json.dumps(filtered_fil, ensure_ascii=False, indent=2)[:2000]}\n```\n\n"
+                full_system_prompt += f"**材料 {i+1} (Filament)**:\n```json\n{json.dumps(filtered_fil, ensure_ascii=False, indent=2)[:2000]}\n```\n\n"
 
-            api_messages.append({"role": "system", "content": preset_context})
+        api_messages = [{"role": "system", "content": full_system_prompt}]
 
+        # Sanitize history: conversation MUST start with a 'user' message for many APIs (like Zhipu)
+        # We skip any leading assistant messages (like the default welcome message)
+        history_started = False
+        
         # Build conversation history
         for i, msg in enumerate(messages):
+            if not history_started and msg.role != "user":
+                continue
+            
+            history_started = True
             is_last = (i == len(messages) - 1)
 
             if msg.role == "user":
                 content: Any = msg.content
 
-                # If last message and there's an image, add it
+                # If last message and there's an image, add it (Vision capabilities)
                 if is_last and image_base64:
                     content = [
                         {"type": "text", "text": msg.content},
@@ -102,10 +110,11 @@ class ChatService:
 
                 # If user is explicitly requesting modifications
                 if is_last and request_modifications:
+                    suffix = "\n\n（请提供具体的 json_modifications 参数修改建议）"
                     if isinstance(content, str):
-                        content += "\n\n（请提供具体的 json_modifications 参数修改建议）"
+                        content += suffix
                     elif isinstance(content, list):
-                        content[0]["text"] += "\n\n（请提供具体的 json_modifications 参数修改建议）"
+                        content[0]["text"] += suffix
 
                 api_messages.append({"role": "user", "content": content})
             else:

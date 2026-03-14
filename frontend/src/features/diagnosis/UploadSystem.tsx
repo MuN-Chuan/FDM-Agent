@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import {
     ImageIcon, FileCode, ShieldCheck, Loader2,
-    Search, MessageCircle, Zap
+    Search, Zap
 } from 'lucide-react';
 import { usePresetParser } from './usePresetParser';
 import { PresetSelector, LoadingSpinner, PresetErrorBanner } from './PresetSelector';
@@ -75,7 +75,6 @@ export const UploadSystem: React.FC<UploadSystemProps> = ({
 
     // Validation per mode
     const canDetect = !!imageFile && isModelReady && !isInferencing;
-    const canChat = description.trim().length > 0;
     const canDeep = !!presetFile && !!bundle && !parseError && !!validateSelection() === false
         && (!!imageFile || description.trim().length > 0);
     const presetValidationError = bundle ? validateSelection() : null;
@@ -202,8 +201,8 @@ export const UploadSystem: React.FC<UploadSystemProps> = ({
                 </div>
             </div>
 
-            {/* === THREE ACTION BUTTONS === */}
-            <div className="pt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* === TWO ACTION BUTTONS === */}
+            <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* 仅识别缺陷 */}
                 <ActionButton
                     icon={<Search size={16} />}
@@ -221,17 +220,6 @@ export const UploadSystem: React.FC<UploadSystemProps> = ({
                                 : undefined
                     }
                     onClick={() => triggerDiagnosis('detect')}
-                />
-
-                {/* 仅AI聊天 */}
-                <ActionButton
-                    icon={<MessageCircle size={16} />}
-                    label="仅AI聊天"
-                    sublabel="需要问题说明"
-                    enabled={canChat}
-                    variant="secondary"
-                    tooltip={!canChat ? '请先输入问题补充说明' : undefined}
-                    onClick={() => triggerDiagnosis('chat')}
                 />
 
                 {/* 深度AI诊断 */}
