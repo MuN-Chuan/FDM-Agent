@@ -31,6 +31,7 @@ export const DiagnosisDashboard: React.FC = () => {
     const [aiThought, setAiThought] = useState<string | null>(null);
     const [modifications, setModifications] = useState<ParameterModification[]>([]);
     const [selectedDefectClasses, setSelectedDefectClasses] = useState<string[]>([]);
+    const [aiUsage, setAiUsage] = useState<{ prompt_tokens: number; completion_tokens: number; total_tokens: number; cache_tokens?: number } | null>(null);
 
     // API Settings modal
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -42,6 +43,7 @@ export const DiagnosisDashboard: React.FC = () => {
             let accumulatedReasoning = "";
             let accumulatedThought = "";
             setAiThought(null);
+            setAiUsage(null);
 
             // Build detections payload based on selected classes
             const detectionsToSubmit = classesToUse.map(cls => {
@@ -72,6 +74,7 @@ export const DiagnosisDashboard: React.FC = () => {
                 } else if (chunk.type === 'done') {
                     if (chunk.reasoning_markdown) setAiReasoning(chunk.reasoning_markdown);
                     if (chunk.modifications) setModifications(chunk.modifications as ParameterModification[]);
+                    if (chunk.usage) setAiUsage(chunk.usage);
                     setTimelineStatus('completed');
                 } else if (chunk.type === 'error') {
                     setAiReasoning(`### ❌ AI 服务异常\n\n${chunk.message}\n\n${chunk.raw ? "```text\n" + chunk.raw + "\n```" : ""}`);
@@ -341,6 +344,7 @@ export const DiagnosisDashboard: React.FC = () => {
                                         thought={aiThought || undefined}
                                         isLoading={timelineStatus === 'analyzing'}
                                         modelName={loadApiSettings().model_name}
+                                        usage={aiUsage || undefined}
                                     />
 
                                     {diagnosisMode === 'deep' && (

@@ -49,6 +49,7 @@ interface UIMessage extends ChatMessage {
     imagePreviewUrl?: string;
     attachedFiles?: { name: string; size: number }[];
     presetName?: string;
+    usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number; cache_tokens?: number };
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -179,8 +180,14 @@ const MessageBubble: React.FC<{
     return (
         <div className="flex gap-4 items-start group/msg">
             {/* Avatar */}
-            <div className="w-9 h-9 rounded-full bg-cta/10 border border-cta/20 flex items-center justify-center shrink-0 mt-1 shadow-sm">
-                <Sparkles size={16} className="text-cta" />
+            {/* Avatar with Gemini-style animation */}
+            <div className="relative group/avatar">
+                {msg.isStreaming && (
+                    <div className="absolute inset-[-4px] rounded-full bg-gradient-to-tr from-[#4285F4] via-[#9b72cb] to-[#d96570] animate-spin blur-[2px] opacity-70" />
+                )}
+                <div className="relative w-9 h-9 rounded-full bg-cta/10 border border-cta/20 flex items-center justify-center shrink-0 mt-0 shadow-sm overflow-hidden z-10 bg-white dark:bg-[#1a1a1a]">
+                    <Sparkles size={16} className={`text-cta ${msg.isStreaming ? 'animate-pulse' : ''}`} />
+                </div>
             </div>
 
             <div className="flex-1 min-w-0 space-y-3">
@@ -225,6 +232,32 @@ const MessageBubble: React.FC<{
                             return <p key={idx} className="my-2">{block}</p>;
                         })}
                         {msg.isStreaming && <span className="inline-block ml-1 w-1.5 h-4 bg-cta/40 animate-pulse align-middle" />}
+                        
+                        {/* Token Usage info */}
+                        {!msg.isStreaming && msg.usage && (
+                            <div className="mt-4 flex items-center gap-3 text-[10px] text-text-light/30 dark:text-text-dark/30 font-mono border-t border-secondary/5 pt-2">
+                                <div className="flex items-center gap-1">
+                                    <span className="opacity-60">Tokens:</span>
+                                    <span className="font-bold text-text-light/50">{msg.usage.prompt_tokens}</span>
+                                    <span className="opacity-40">→</span>
+                                    <span className="font-bold text-text-light/50">{msg.usage.completion_tokens}</span>
+                                </div>
+                                {msg.usage.cache_tokens !== undefined && msg.usage.cache_tokens > 0 && (
+                                    <>
+                                        <div className="w-1 h-1 rounded-full bg-secondary/10" />
+                                        <div className="flex items-center gap-1">
+                                            <span className="opacity-60 text-emerald-500/50">Cached:</span>
+                                            <span className="font-bold text-emerald-500/60">{msg.usage.cache_tokens}</span>
+                                        </div>
+                                    </>
+                                )}
+                                <div className="w-1 h-1 rounded-full bg-secondary/10" />
+                                <div className="flex items-center gap-1">
+                                    <span className="opacity-60">Total:</span>
+                                    <span className="font-bold text-cta/60">{msg.usage.total_tokens}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -271,8 +304,8 @@ const MessageBubble: React.FC<{
                 {/* Action buttons */}
                 {!msg.isStreaming && (
                     <div className="flex gap-2 flex-wrap pt-2">
-                        {/* Smart Help Button: Only show if preset is present, NOT welcome message, NOT streaming, AND content seems relevant */}
-                        {hasPreset && msg.id !== 'welcome' && (msg.content.includes('参数') || msg.content.includes('优化') || msg.content.includes('建议') || msg.content.includes('切片')) && (
+                        {/* Smart Help Button: Only show if preset is present, NOT welcome message, NOT streaming, content seems relevant, AND NO modifications already present */}
+                        {hasPreset && msg.id !== 'welcome' && !msg.modifications && (msg.content.includes('参数') || msg.content.includes('优化') || msg.content.includes('建议') || msg.content.includes('切片')) && (
                             <button
                                 onClick={() => onRequestModifications(msg.id)}
                                 className="flex items-center gap-2 px-3.5 py-2 text-[11px] font-bold uppercase tracking-wider rounded-lg border border-cta/20 text-cta bg-cta/5 hover:bg-cta/10 transition-all shadow-sm"
@@ -662,12 +695,17 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                     setMessages(prev => prev.map(m => m.id === aiMsgId ? { ...m, content: displayText } : m));
                 } else if (chunk.type === 'done') {
                     const mods = (chunk.modifications || []) as Modification[];
+                    const usage = chunk.usage;
                     if (mods.length > 0) {
                         setModifications(mods);
-                        // Auto-open side panel disabled per user request
                     }
                     setMessages(prev => prev.map(m =>
-                        m.id === aiMsgId ? { ...m, isStreaming: false, modifications: mods.length > 0 ? mods : undefined } : m
+                        m.id === aiMsgId ? { 
+                            ...m, 
+                            isStreaming: false, 
+                            modifications: mods.length > 0 ? mods : undefined,
+                            usage: usage 
+                        } : m
                     ));
                     setIsStreaming(false);
                 } else if (chunk.type === 'error') {

@@ -156,11 +156,27 @@ class ChatService:
                 messages=api_messages,
                 temperature=0.7,
                 max_tokens=8192,
-                stream=True
+                stream=True,
+                stream_options={"include_usage": True}
             )
 
             full_text = ""
+            usage = None
             async for chunk in stream:
+                # Robust usage extraction
+                curr_usage = getattr(chunk, 'usage', None)
+                if curr_usage:
+                    prompt_details = getattr(curr_usage, 'prompt_tokens_details', None)
+                    cached_tokens = getattr(prompt_details, 'cached_tokens', 0) if prompt_details else 0
+                    
+                    usage = {
+                        "prompt_tokens": getattr(curr_usage, 'prompt_tokens', 0),
+                        "completion_tokens": getattr(curr_usage, 'completion_tokens', 0),
+                        "total_tokens": getattr(curr_usage, 'total_tokens', 0),
+                        "cache_tokens": cached_tokens
+                    }
+                    print(f"[Chat] Captured usage: {usage}")
+
                 if not chunk.choices:
                     continue
 
@@ -188,7 +204,7 @@ class ChatService:
                 except (json.JSONDecodeError, ValueError) as e:
                     print(f"[Chat] Failed to parse json_modifications: {e}")
 
-            yield f"data: {json.dumps({'type': 'done', 'modifications': modifications}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'modifications': modifications, 'usage': usage}, ensure_ascii=False)}\n\n"
 
         except Exception as e:
             print(f"[Chat] Stream error: {e}")

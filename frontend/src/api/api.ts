@@ -45,6 +45,7 @@ type StreamChunk = {
     modifications?: Modification[];
     message?: string;
     raw?: string;
+    usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number; cache_tokens?: number };
 };
 
 async function parseStream(response: Response, onUpdate: (chunk: StreamChunk) => void): Promise<void> {

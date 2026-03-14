@@ -6,9 +6,10 @@ interface AIResultMarkdownProps {
     thought?: string;
     isLoading?: boolean;
     modelName?: string;
+    usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number; cache_tokens?: number };
 }
 
-export const AIResultMarkdown: React.FC<AIResultMarkdownProps> = ({ content, thought, isLoading, modelName }) => {
+export const AIResultMarkdown: React.FC<AIResultMarkdownProps> = ({ content, thought, isLoading, modelName, usage }) => {
     const [isThoughtExpanded, setIsThoughtExpanded] = useState(true);
 
     // Show initial loading state ONLY when there's no content or thought yet
@@ -108,6 +109,33 @@ export const AIResultMarkdown: React.FC<AIResultMarkdownProps> = ({ content, tho
                 <div className="flex items-center gap-2 mt-6 p-3 rounded-lg bg-cta/5 text-cta/50 text-xs border border-cta/10">
                     <Loader2 size={12} className="animate-spin" />
                     <span className="animate-pulse font-bold tracking-tight">AI 正在生成深度建议...</span>
+                </div>
+            )}
+
+            {/* --- Token Usage Footer --- */}
+            {!isLoading && usage && (
+                <div className="mt-8 flex items-center flex-wrap gap-4 text-[10px] text-text-light/30 dark:text-text-dark/30 font-mono border-t border-secondary/5 pt-4">
+                    <div className="flex items-center gap-1.5">
+                        <span className="opacity-60 uppercase tracking-tighter">Prompt:</span>
+                        <span className="font-bold text-text-light/50">{usage.prompt_tokens}</span>
+                    </div>
+                    
+                    {usage.cache_tokens !== undefined && usage.cache_tokens > 0 && (
+                        <div className="flex items-center gap-1.5">
+                            <span className="opacity-60 uppercase tracking-tighter text-emerald-500/50">Cached:</span>
+                            <span className="font-bold text-emerald-500/60">{usage.cache_tokens}</span>
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-1.5">
+                        <span className="opacity-60 uppercase tracking-tighter">Comp:</span>
+                        <span className="font-bold text-text-light/50">{usage.completion_tokens}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-1.5 ml-auto">
+                        <span className="opacity-60 uppercase tracking-tighter">Total:</span>
+                        <span className="font-bold text-cta/60">{usage.total_tokens}</span>
+                    </div>
                 </div>
             )}
         </div>
