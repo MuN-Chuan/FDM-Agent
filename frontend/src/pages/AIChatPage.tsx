@@ -636,6 +636,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
         const history: ChatMessage[] = [...baseHistory, apiUserMsg];
 
         const presetData = selection ? {
+            slicer: bundle?.format,
             printer: selection.printer?.data || {},
             process: selection.process?.data || {},
             filament: selection.filaments.map((f: RawPreset) => f.data),

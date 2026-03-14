@@ -1,0 +1,12 @@
+--- Filament Inheritance Result ---
+Name: My Custom PLA
+Nozzle Temp (Override): [220]
+Bed Temp (Common): [55]
+Filament ID (Common): generic_filament_id
+Inherits (Common): Generic PLA @BBL X1C
+
+--- Process Inheritance Result ---
+Layer Height (Common): 0.2
+Wall Loops (Override): 4
+Infill (Common): 15%
+Print ID (Common): generic_process_id

@@ -1,4 +1,5 @@
 {
+    "inherits": "fdm_process_common",
     "type": "process",
     "name": "0.20mm Standard @Generic Bambu",
     "from": "system",

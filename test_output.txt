@@ -1,0 +1,14 @@
+--- Starting Inheritance Tests ---
+Slicer Identification (Bambu): bambu (Expected: bambu)
+
+--- Inheritance Result ---
+Final Name: My Custom PLA
+Inherited Temperature (Common): None (Expected: [60])
+Overridden Temperature (User): [220] (Expected: [220])
+Inherited Fan (Common): None (Expected: 100)
+Traceback (most recent call last):
+  File "C:\Users\27822\Documents\FDM_AI_WEB\backend\tests\test_inheritance.py", line 45, in <module>
+    test_inheritance()
+  File "C:\Users\27822\Documents\FDM_AI_WEB\backend\tests\test_inheritance.py", line 42, in test_inheritance
+    print("\n\u274c Inheritance test FAILED")
+UnicodeEncodeError: 'gbk' codec can't encode character '\u274c' in position 2: illegal multibyte sequence
