@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
 import {
     Send, Paperclip, Image as ImageIcon, Brain, Sparkles, Loader2,
     ChevronDown, ChevronUp, Wrench, Download, X, FileArchive, AlertTriangle, Settings,
@@ -9,7 +8,6 @@ import {
 import { api } from '../api/api';
 import type { ChatMessage, Modification } from '../api/api';
 import { loadApiSettings } from '../api/apiSettings';
-import { usePresetParser } from '../features/diagnosis/usePresetParser';
 import { ParameterDiffViewer } from '../features/diagnosis/ParameterDiffViewer';
 import { ApiSettingsModal } from '../features/diagnosis/ApiSettingsModal';
 import { PresetSelectionModal } from '../features/diagnosis/PresetSelectionModal';
@@ -20,6 +18,28 @@ import type { ChatSessionData } from '../api/chatStorage';
 // ─── Rename Config ─────────────────────────────────────────────────────────
 const RENAME_CONFIG = { prefix: 'fix_', suffix: '' };
 const applyRename = (name: string) => `${RENAME_CONFIG.prefix}${name}${RENAME_CONFIG.suffix}`;
+// ─── Preset Types ────────────────────────────────────────────────────────
+interface RawPreset {
+    name: string;
+    path: string;
+    data: Record<string, any>;
+}
+
+interface ParsedBundle {
+    format: 'bambu' | 'orca';
+    bundleId: string;
+    printers: RawPreset[];
+    filaments: RawPreset[];
+    processes: RawPreset[];
+}
+
+interface PresetSelection {
+    printer: RawPreset | null;
+    process: RawPreset | null;
+    filaments: RawPreset[];
+    defectFilaments: RawPreset[];
+}
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface UIMessage extends ChatMessage {
     id: string;
@@ -306,18 +326,118 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDefectModalOpen, setIsDefectModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
+    // Initialized from hook inlining
+    const [bundle, setBundle] = useState<ParsedBundle | null>(null);
+    /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
+    const [parseError, setParseError] = useState<any>(null);
+    const [isParsingPreset, setIsParsingPreset] = useState(false);
+    const [selection, setSelection] = useState<PresetSelection>({
+        printer: null,
+        process: null,
+        filaments: [],
+        defectFilaments: []
+    });
+
+    // ─── 1.5 Refs ─────────────────────────────────────────────────────────
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const presetInputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
-    const { parsePresetFile, isParsing: isParsingPreset, bundle, validateSelection, selection, updateSelection } = usePresetParser();
+    // ─── 2. Callbacks (Fixed Order) ───────────────────────────────────────
+    const handleScroll = useCallback(() => {
+        if (!scrollContainerRef.current) return;
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
+        setShouldAutoScroll(isNearBottom);
+    }, []);
 
-    // ─── Persistence Logic ────────────────────────────────────────────────
+    const restoreBundle = useCallback((newBundle: any, newSelection: any) => {
+        setBundle(newBundle);
+        setSelection(newSelection);
+    }, []);
+
+    const parsePresetFile = useCallback(async (file: File) => {
+        setIsParsingPreset(true);
+        setParseError(null);
+        setBundle(null);
+        setSelection({ printer: null, process: null, filaments: [], defectFilaments: [] });
+
+        try {
+            const zip = await JSZip.loadAsync(file);
+            const bundleFile = zip.file('bundle_structure.json');
+            if (!bundleFile) throw new Error('缺少 bundle_structure.json');
+            const bundleJson = JSON.parse(await bundleFile.async('text'));
+            
+            async function readPresets(paths: string[]): Promise<any[]> {
+                const results: any[] = [];
+                for (const p of paths) {
+                    const f = zip.file(p);
+                    if (!f) continue;
+                    try {
+                        const text = await f.async('text');
+                        const data = JSON.parse(text);
+                        results.push({ name: data.name || data.print_settings_id || p, path: p, data });
+                    } catch {
+                        results.push({ name: p, path: p, data: {} });
+                    }
+                }
+                return results;
+            }
+
+            const [printers, filaments, processes] = await Promise.all([
+                readPresets(bundleJson.printer_config || []),
+                readPresets(bundleJson.filament_config || []),
+                readPresets(bundleJson.process_config || []),
+            ]);
+
+            const parsed: ParsedBundle = {
+                format: (file.name.endsWith('.bbscfg') ? 'bambu' : 'orca') as 'bambu' | 'orca',
+                bundleId: bundleJson.bundle_id || file.name,
+                printers,
+                filaments,
+                processes,
+            };
+            setBundle(parsed);
+            setIsParsingPreset(false);
+            return parsed;
+        } catch (e: any) {
+            setParseError({ type: 'parse_error', message: e.message });
+            setIsParsingPreset(false);
+            return null;
+        }
+    }, []);
+
+    const updateSelection = useCallback((patch: any) => {
+        setSelection((prev: any) => {
+            const next = { ...prev, ...patch };
+            if (next.filaments.length <= 1) {
+                next.defectFilaments = next.filaments.length === 1 ? [next.filaments[0]] : [];
+            } else {
+                next.defectFilaments = next.defectFilaments.filter((df: any) =>
+                    next.filaments.some((f: any) => f.path === df.path)
+                );
+            }
+            return next;
+        });
+    }, []);
+
+    const validateSelection = useCallback((): string | null => {
+        if (!bundle) return '请先上传预设文件。';
+        if (!selection.printer) return '请选择机器预设';
+        if (!selection.process) return '请选择工艺预设';
+        if (selection.filaments.length === 0) return '请至少选择一个材料预设';
+        if (selection.filaments.length > 1 && selection.defectFilaments.length === 0) {
+            return '多色打印请标记产生缺陷的材料';
+        }
+        return null;
+    }, [bundle, selection]);
+
+    // ─── 3. Effects (Fixed Order) ─────────────────────────────────────────
     // Load session
     useEffect(() => {
         if (currentSessionId) {
@@ -326,15 +446,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                 setMessages(session.messages);
                 setModifications(session.modifications || []);
                 setPresetFileName(session.presetFileName || null);
-                // Note: selection state is tricky because usePresetParser maintains its own state.
-                // We'll update the hook's selection if the hook provides a setter or we bypass it.
-                // For now, we'll try to sync it if possible.
-                if (session.selection) {
-                    updateSelection(session.selection);
+                if (session.selection && session.bundle) {
+                    restoreBundle(session.bundle, session.selection);
                 }
             }
         } else {
-            // Reset to default for new chat
             setMessages([{
                 id: 'welcome',
                 role: 'assistant',
@@ -344,16 +460,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             setPresetFileName(null);
             setPendingFiles([]);
             setPendingImage(null);
-            // selection reset is handled by the initial state of the hook in normal cases
         }
-    }, [currentSessionId]);
+    }, [currentSessionId, restoreBundle]);
 
     // Auto-save
     useEffect(() => {
-        // Only save if we have messages beyond the welcome message OR if we have a currentSessionId
         if (!currentSessionId && messages.length <= 1) return;
-
-        // If no ID yet (first message), handleSend will create it.
         if (currentSessionId) {
             const currentData = chatStorage.getSession(currentSessionId);
             const sessionData: ChatSessionData = {
@@ -363,26 +475,21 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                 messages,
                 modifications,
                 selection,
+                bundle,
                 presetFileName
             };
             chatStorage.saveSession(sessionData);
         }
-    }, [messages, modifications, selection, presetFileName, currentSessionId]);
+    }, [messages, modifications, selection, bundle, presetFileName, currentSessionId]);
 
-    const handleScroll = () => {
-        if (!scrollContainerRef.current) return;
-        const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-        const isNearBottom = scrollHeight - scrollTop - clientHeight < 150;
-        setShouldAutoScroll(isNearBottom);
-    };
-
+    // Scroll effect
     useEffect(() => {
         if (shouldAutoScroll && messagesEndRef.current) {
             messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
         }
     }, [messages, shouldAutoScroll]);
 
-    // ─── Auto-resize textarea ─────────────────────────────────────────────
+    // Auto-resize effect
     useEffect(() => {
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
@@ -390,11 +497,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
         }
     }, [input]);
 
-    // ─── Validation ──────────────────────────────────────────────────────
+    // ─── 4. Memos (Fixed Order) ───────────────────────────────────────────
     const presetValidationError = useMemo(() => {
         if (!bundle) return null;
-        // Selection is maintained by the hook, but we local-state it too for compatibility
-        // Let's rely on hook selection which is synced in handleModalConfirm
         return validateSelection();
     }, [bundle, validateSelection]);
 
@@ -440,7 +545,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
         
         for (const file of files) {
             try {
-                const text = await file.text();
+                const text = await (file as any).text();
                 // Basic truncation to prevent overflowing context unexpectedly
                 const content = text.length > 50000 ? text.substring(0, 50000) + '\n...[Truncated]' : text;
                 newFiles.push({ name: file.name, size: file.size, content });
@@ -533,7 +638,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
         const presetData = selection ? {
             printer: selection.printer?.data || {},
             process: selection.process?.data || {},
-            filament: selection.filaments.map(f => f.data),
+            filament: selection.filaments.map((f: RawPreset) => f.data),
         } : undefined;
 
         const apiSettings = loadApiSettings();
@@ -627,8 +732,42 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             if (result) zip.file(`${result.name}.json`, JSON.stringify(result.data, null, 2));
         });
         if (Object.keys(zip.files).length === 0) { alert('没有需要修改的预设参数'); return; }
-        const blob = await zip.generateAsync({ type: 'blob' });
-        saveAs(blob, 'fixed_presets.zip');
+        
+        const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/zip' });
+        
+        // Chrome-compatible download: use File System Access API if available
+        if ('showSaveFilePicker' in window) {
+            try {
+                const handle = await (window as any).showSaveFilePicker({
+                    suggestedName: 'fixed_presets.zip',
+                    types: [{
+                        description: 'ZIP Archive',
+                        accept: { 'application/zip': ['.zip'] },
+                    }],
+                });
+                const writable = await handle.createWritable();
+                await writable.write(blob);
+                await writable.close();
+                return;
+            } catch (err: any) {
+                // User cancelled the picker — silently return
+                if (err?.name === 'AbortError') return;
+                // API failed, fall through to fallback
+            }
+        }
+        
+        // Fallback: classic anchor download
+        const url = URL.createObjectURL(new Blob([blob], { type: 'application/zip' }));
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.setAttribute('download', 'fixed_presets.zip');
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 200);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

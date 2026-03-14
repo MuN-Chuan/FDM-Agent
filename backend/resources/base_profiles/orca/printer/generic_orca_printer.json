@@ -1,0 +1,13 @@
+{
+    "type": "printer",
+    "name": "Generic Orca Printer",
+    "from": "system",
+    "bed_shape": "0x0,220x0,220x220,0x220",
+    "nozzle_diameter": [0.4],
+    "max_print_height": "250",
+    "printer_model": "Generic Orca",
+    "gcode_flavor": "marlin2",
+    "printable_area": [220, 220],
+    "default_print_profile": "0.20mm Standard @Generic Orca",
+    "nozzle_type": "stainless_steel"
+}

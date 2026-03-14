@@ -178,6 +178,11 @@ export function usePresetParser() {
         return null;
     }, [bundle, selection]);
 
+    const restoreBundle = useCallback((newBundle: ParsedBundle, newSelection: PresetSelection) => {
+        setBundle(newBundle);
+        setSelection(newSelection);
+    }, []);
+
     return {
         bundle,
         parseError,
@@ -186,5 +191,6 @@ export function usePresetParser() {
         parsePresetFile,
         updateSelection,
         validateSelection,
+        restoreBundle
     };
 }

@@ -5,6 +5,7 @@ from openai import AsyncOpenAI
 from app.models.chat import ChatMessage
 from app.models.diagnosis import ApiSettings
 from app.core.config import settings
+from app.services.preset_inheritance_service import preset_inheritance_service
 
 
 SYSTEM_PROMPT = """你是一个专业的 FDM (熔融沉积成型) 3D 打印顾问助手。你的任务是：
@@ -65,6 +66,18 @@ class ChatService:
         request_modifications: bool
     ) -> list:
         """Build the messages payload for the LLM API."""
+        # NEW: Expand presets with base profiles if they are incomplete diffs
+        if preset_data:
+            if "printer" in preset_data and preset_data["printer"]:
+                preset_data["printer"] = preset_inheritance_service.get_full_preset(preset_data["printer"], "printer")
+            if "process" in preset_data and preset_data["process"]:
+                preset_data["process"] = preset_inheritance_service.get_full_preset(preset_data["process"], "process")
+            if "filament" in preset_data and isinstance(preset_data["filament"], list):
+                new_filaments = []
+                for fil in preset_data["filament"]:
+                    new_filaments.append(preset_inheritance_service.get_full_preset(fil, "filament"))
+                preset_data["filament"] = new_filaments
+
         full_system_prompt = SYSTEM_PROMPT
 
         # Inject preset context into system prompt if provided

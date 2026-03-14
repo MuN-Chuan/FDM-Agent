@@ -11,6 +11,7 @@ export interface ChatSessionData extends ChatSessionMetadata {
     // To avoid circular dependency or complex imports, we'll use a generic object for data
     modifications: Modification[];
     selection: any;
+    bundle: any;
     presetFileName: string | null;
 }
 

@@ -3,6 +3,7 @@ from typing import List, Optional
 from openai import AsyncOpenAI, OpenAIError, RateLimitError, AuthenticationError
 from app.models.diagnosis import Detection, PresetData, Modification, DiagnosisResponse, ApiSettings
 from app.core.config import settings
+from app.services.preset_inheritance_service import preset_inheritance_service
 
 class DiagnosisService:
     def __init__(self):
@@ -80,12 +81,22 @@ class DiagnosisService:
     async def analyze_stream(
         self, 
         detections: List[Detection], 
-        description: Optional[str], 
         safety_constraints: Optional[str], 
         preset_data: PresetData,
         api_settings: Optional[ApiSettings] = None
     ):
         """Streaming version of diagnosis that yields chunks of text and final JSON results."""
+        # NEW: Expand presets with base profiles if they are incomplete diffs
+        if preset_data:
+            if preset_data.printer:
+                preset_data.printer = preset_inheritance_service.get_full_preset(preset_data.printer, "printer")
+            if preset_data.process:
+                preset_data.process = preset_inheritance_service.get_full_preset(preset_data.process, "process")
+            new_filaments = []
+            for fil in preset_data.filament:
+                new_filaments.append(preset_inheritance_service.get_full_preset(fil, "filament"))
+            preset_data.filament = new_filaments
+
         user_prompt = self._build_prompt(detections, description, preset_data)
         if safety_constraints:
             user_prompt += f"\n【重要安全约束】:\n{safety_constraints}\n绝对不能输出违反此约束的参数建议！\n"
@@ -176,6 +187,17 @@ class DiagnosisService:
         api_settings: Optional[ApiSettings] = None
     ) -> DiagnosisResponse:
         
+        # NEW: Expand presets with base profiles if they are incomplete diffs
+        if preset_data:
+            if preset_data.printer:
+                preset_data.printer = preset_inheritance_service.get_full_preset(preset_data.printer, "printer")
+            if preset_data.process:
+                preset_data.process = preset_inheritance_service.get_full_preset(preset_data.process, "process")
+            new_filaments = []
+            for fil in preset_data.filament:
+                new_filaments.append(preset_inheritance_service.get_full_preset(fil, "filament"))
+            preset_data.filament = new_filaments
+
         system_prompt = "你是一个 3D 打印助手，请总是以原生 JSON 格式输出响应，不要包含 Markdown 代码块。"
         user_prompt = self._build_prompt(detections, description, preset_data)
 

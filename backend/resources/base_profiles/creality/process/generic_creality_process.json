@@ -1,0 +1,13 @@
+{
+    "type": "process",
+    "name": "Default Process @Generic Creality",
+    "layer_height": 0.2,
+    "wall_thickness": 0.8,
+    "infill_sparse_density": 15,
+    "infill_pattern": "grid",
+    "top_bottom_thickness": 0.8,
+    "speed_print": 60,
+    "speed_wall": 30,
+    "speed_infill": 60,
+    "speed_travel": 150
+}
