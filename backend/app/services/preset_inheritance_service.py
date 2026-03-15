@@ -8,15 +8,8 @@ class PresetInheritanceService:
         # Resolve project root (4 levels up from backend/app/services/preset_inheritance_service.py)
         self.project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         
-        # Base directory for absolute defaults (The Hardcoded Bottom)
-        self.absolute_base_dir = os.path.join(
-            self.project_root, "backend", "resources", "base_profiles", "absolute_base"
-        )
-        
-        # Source directory for brand/category/specific bases (BambuStudio profiles)
-        self.studio_profiles_dir = os.path.join(
-            self.project_root, "BambuStudio-master", "resources", "profiles"
-        )
+        # Unified resources directory
+        self.resources_dir = os.path.join(self.project_root, "backend", "resources")
 
         # Slicer Identification Keywords
         self.SLICER_KEYWORDS = {
@@ -42,7 +35,7 @@ class PresetInheritanceService:
 
     def identify_slicer_and_machine(self, preset_data: Dict[str, Any]) -> Dict[str, str]:
         """Identify slicer, brand and machine from preset metadata."""
-        results = {"slicer": "unknown", "brand": "unknown", "machine": "unknown"}
+        results = {"slicer": "bambu", "brand": "unknown", "machine": "unknown"}
         preset_str = json.dumps(preset_data)
         
         for slicer, keywords in self.SLICER_KEYWORDS.items():
@@ -90,27 +83,29 @@ class PresetInheritanceService:
                 merged[k] = v
         return merged
 
-    def _get_profile_path(self, name: str, category: str, brand: str = "BBL") -> Optional[str]:
-        """Locate a profile JSON file by name within the studio profiles tree."""
+    def _get_profile_path(self, name: str, category: str, slicer: str, brand: str = "BBL") -> Optional[str]:
+        """Locate a profile JSON file by name within the specific slicer's profile tree."""
         if not name: return None
         if not name.endswith(".json"): name += ".json"
         
+        slicer_profiles_dir = os.path.join(self.resources_dir, slicer, "profiles")
+        if not os.path.exists(slicer_profiles_dir): return None
+
         # Priority 1: Brand directory (e.g. BBL/filament/name.json)
-        brand_path = os.path.join(self.studio_profiles_dir, brand, category, name)
+        brand_path = os.path.join(slicer_profiles_dir, brand, category, name)
         if os.path.exists(brand_path): return brand_path
         
-        # Priority 2: Relative to category if name is already a partial path
-        # (Though usually it's just the filename)
-        
-        # Priority 3: Search all brands if necessary (sometimes inherits across brands)
-        for b in os.listdir(self.studio_profiles_dir):
-            if os.path.isdir(os.path.join(self.studio_profiles_dir, b)):
-                search_path = os.path.join(self.studio_profiles_dir, b, category, name)
-                if os.path.exists(search_path): return search_path
+        # Priority 2: Search all brand subdirectories within this slicer's profile tree
+        if os.path.exists(slicer_profiles_dir):
+            for b in os.listdir(slicer_profiles_dir):
+                brand_dir = os.path.join(slicer_profiles_dir, b)
+                if os.path.isdir(brand_dir):
+                    search_path = os.path.join(brand_dir, category, name)
+                    if os.path.exists(search_path): return search_path
                 
         return None
 
-    def _load_inheritance_chain(self, start_data: Dict[str, Any], category: str, brand: str) -> List[Dict[str, Any]]:
+    def _load_inheritance_chain(self, start_data: Dict[str, Any], category: str, brand: str, slicer: str = "bambu") -> List[Dict[str, Any]]:
         """
         Recursively trace the inheritance chain from top to bottom.
         Returns a list of data dicts ordered from MOST BASE to MOST SPECIFIC.
@@ -125,9 +120,9 @@ class PresetInheritanceService:
                 break
             
             visited.add(inherits)
-            path = self._get_profile_path(inherits, category, brand)
+            path = self._get_profile_path(inherits, category, slicer, brand)
             if not path:
-                # If we can't find the parent in the studio tree, stop
+                # If we can't find the parent in the tree, stop
                 break
                 
             try:
@@ -138,9 +133,14 @@ class PresetInheritanceService:
                 print(f"[PresetService] Error loading inherited profile {inherits}: {e}")
                 break
         
-        # Add the 'Absolute Base' at the very bottom
+        # Add the 'Absolute Base' (Extracted from C++) at the very bottom
         abs_base_name = f"{category}_base.json"
-        abs_base_path = os.path.join(self.absolute_base_dir, abs_base_name)
+        abs_base_path = os.path.join(self.resources_dir, slicer, "base_profiles", abs_base_name)
+        
+        # Fallback to bambu base if specific slicer base is missing
+        if not os.path.exists(abs_base_path):
+            abs_base_path = os.path.join(self.resources_dir, "bambu", "base_profiles", abs_base_name)
+            
         if os.path.exists(abs_base_path):
             try:
                 with open(abs_base_path, 'r', encoding='utf-8') as f:
@@ -157,14 +157,15 @@ class PresetInheritanceService:
             return user_preset
 
         info = self.identify_slicer_and_machine(user_preset)
-        brand_dir = "BBL" # Default to BBL for BambuStudio based slicers
+        brand_dir = "BBL" # Default
         
-        # Map detected brand to directory name if possible
+        # Map detected brand to directory name for search priority
         if "creality" in info["brand"].lower(): brand_dir = "Creality"
         elif "anycubic" in info["brand"].lower(): brand_dir = "Anycubic"
+        elif "bambu" in info["brand"].lower(): brand_dir = "BBL"
         
         # 1. Load the full chain (Absolute -> Common -> Category -> Specific -> User)
-        chain = self._load_inheritance_chain(user_preset, category, brand_dir)
+        chain = self._load_inheritance_chain(user_preset, category, brand_dir, info["slicer"])
         
         # 2. Iterative deep merge
         result = {}

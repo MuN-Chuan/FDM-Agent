@@ -1,0 +1,18 @@
+{
+    "printer_technology": "ptFFF",
+    "printer_agent": "",
+    "nozzle_height": "2.5",
+    "nozzle_flush_dataset": "0",
+    "nozzle_type": "{ ntUndefine }",
+    "nozzle_hrc": "0",
+    "printer_structure": "psUndefine",
+    "nozzle_diameter": "0.4",
+    "nozzle_volume": "{0.0}",
+    "printer_model": "",
+    "printer_notes": "",
+    "printer_variant": "",
+    "nozzle_volume_type": "NozzleVolumeType::nvtStandard",
+    "printer_extruder_id": "1",
+    "printer_extruder_variant": "Direct Drive Standard",
+    "printer_preset": ""
+}

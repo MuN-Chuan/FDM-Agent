@@ -183,7 +183,7 @@ const MessageBubble: React.FC<{
             {/* Avatar with Gemini-style animation */}
             <div className="relative group/avatar">
                 {msg.isStreaming && (
-                    <div className="absolute inset-[-4px] rounded-full bg-gradient-to-tr from-[#4285F4] via-[#9b72cb] to-[#d96570] animate-spin blur-[2px] opacity-70" />
+                    <div className="absolute inset-[-3px] rounded-full border-2 border-emerald-500/30 border-t-emerald-500 animate-spin z-0" />
                 )}
                 <div className="relative w-9 h-9 rounded-full bg-cta/10 border border-cta/20 flex items-center justify-center shrink-0 mt-0 shadow-sm overflow-hidden z-10 bg-white dark:bg-[#1a1a1a]">
                     <Sparkles size={16} className={`text-cta ${msg.isStreaming ? 'animate-pulse' : ''}`} />
