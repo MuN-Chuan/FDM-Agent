@@ -34,6 +34,7 @@ interface ParsedBundle {
 }
 
 interface PresetSelection {
+    slicer: string | null;
     printer: RawPreset | null;
     process: RawPreset | null;
     filaments: RawPreset[];
@@ -70,7 +71,7 @@ const isVisionModel = (modelName: string): boolean => {
 const MessageBubble: React.FC<{
     msg: UIMessage;
     onRequestModifications: (msgId: string) => void;
-    onDownloadPresets: () => void;
+    onDownloadPresets: (mods: Modification[]) => void;
     onEdit: (msgId: string, content: string) => void;
     onRegenerate: (msgId: string) => void;
     hasPreset: boolean;
@@ -81,7 +82,6 @@ const MessageBubble: React.FC<{
 }> = ({ msg, onRequestModifications, onDownloadPresets, onEdit, onRegenerate, hasPreset, isLast, editingId, onStartEdit, onCancelEdit }) => {
     const [thoughtOpen, setThoughtOpen] = useState(true);
     const hasAutoCollapsedRef = useRef(false);
-    const [recommendationOpen, setRecommendationOpen] = useState(true);
     const [tempEditValue, setTempEditValue] = useState(msg.content);
     const isUser = msg.role === 'user';
     const isEditing = editingId === msg.id;
@@ -264,40 +264,27 @@ const MessageBubble: React.FC<{
                 {/* Parameter modifications */}
                 {msg.modifications && msg.modifications.length > 0 && (
                     <div className="mt-4 rounded-xl border border-cta/30 bg-cta/5 overflow-hidden shadow-sm animate-in fade-in slide-in-from-top-2">
-                        <button 
-                            onClick={() => setRecommendationOpen(!recommendationOpen)}
-                            className="w-full px-4 py-2 border-b border-cta/10 flex items-center justify-between bg-cta/10 hover:bg-cta/20 transition-colors group"
-                        >
-                            <div className="flex items-center gap-2">
-                                <Wrench size={14} className="text-cta" />
-                                <span className="text-[11px] font-bold uppercase tracking-widest text-cta">参数修改建议</span>
+                        <div className="p-4 space-y-4">
+                            <ParameterDiffViewer modifications={msg.modifications} />
+                            
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={() => onDownloadPresets(msg.modifications || [])}
+                                    disabled={!hasPreset}
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-cta text-white text-xs font-bold rounded-xl hover:bg-cta-hover shadow-md shadow-cta/20 transition-all disabled:opacity-40 disabled:scale-100 active:scale-95"
+                                >
+                                    <Download size={14} />
+                                    下载修复后的预设包
+                                </button>
+                                <button
+                                    onClick={() => alert('PDF 导出功能即将推出 (PDF Export coming soon)')}
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-secondary/20 text-secondary text-xs font-bold rounded-xl hover:bg-secondary/5 transition-all active:scale-95"
+                                >
+                                    <Download size={14} />
+                                    下载对比 PDF
+                                </button>
                             </div>
-                            {recommendationOpen ? <ChevronUp size={14} className="text-cta/40" /> : <ChevronDown size={14} className="text-cta/40" />}
-                        </button>
-                        
-                        {recommendationOpen && (
-                            <div className="p-4 space-y-4">
-                                <ParameterDiffViewer modifications={msg.modifications} />
-                                
-                                <div className="flex gap-3 pt-2">
-                                    <button
-                                        onClick={onDownloadPresets}
-                                        disabled={!hasPreset}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-cta text-white text-xs font-bold rounded-xl hover:bg-cta-hover shadow-md shadow-cta/20 transition-all disabled:opacity-40 disabled:scale-100 active:scale-95"
-                                    >
-                                        <Download size={14} />
-                                        下载修复后的预设包
-                                    </button>
-                                    <button
-                                        onClick={() => alert('PDF 导出功能即将推出 (PDF Export coming soon)')}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-secondary/20 text-secondary text-xs font-bold rounded-xl hover:bg-secondary/5 transition-all active:scale-95"
-                                    >
-                                        <Download size={14} />
-                                        下载对比 PDF
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                        </div>
                     </div>
                 )}
 
@@ -360,18 +347,29 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
     const [isDefectModalOpen, setIsDefectModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
-
-    // Initialized from hook inlining
     const [bundle, setBundle] = useState<ParsedBundle | null>(null);
     /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
-    const [parseError, setParseError] = useState<any>(null);
     const [isParsingPreset, setIsParsingPreset] = useState(false);
+    
     const [selection, setSelection] = useState<PresetSelection>({
+        slicer: null,
         printer: null,
         process: null,
         filaments: [],
         defectFilaments: []
     });
+
+    const [paramCategoryMap, setParamCategoryMap] = useState<Record<string, string[]> | null>(null);
+
+    useEffect(() => {
+        if (selection.slicer) {
+            api.getParameterMap(selection.slicer)
+                .then(setParamCategoryMap)
+                .catch(err => console.error('Failed to fetch parameter map:', err));
+        } else {
+            setParamCategoryMap(null);
+        }
+    }, [selection.slicer]);
 
     // ─── 1.5 Refs ─────────────────────────────────────────────────────────
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -396,9 +394,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
 
     const parsePresetFile = useCallback(async (file: File) => {
         setIsParsingPreset(true);
-        setParseError(null);
         setBundle(null);
-        setSelection({ printer: null, process: null, filaments: [], defectFilaments: [] });
+        setSelection({ slicer: null, printer: null, process: null, filaments: [], defectFilaments: [] });
 
         try {
             const zip = await JSZip.loadAsync(file);
@@ -428,18 +425,20 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                 readPresets(bundleJson.process_config || []),
             ]);
 
+            const format = (file.name.endsWith('.bbscfg') ? 'bambu' : 'orca') as 'bambu' | 'orca';
             const parsed: ParsedBundle = {
-                format: (file.name.endsWith('.bbscfg') ? 'bambu' : 'orca') as 'bambu' | 'orca',
+                format,
                 bundleId: bundleJson.bundle_id || file.name,
                 printers,
                 filaments,
                 processes,
             };
+            setSelection(prev => ({ ...prev, slicer: format }));
             setBundle(parsed);
             setIsParsingPreset(false);
             return parsed;
         } catch (e: any) {
-            setParseError({ type: 'parse_error', message: e.message });
+            console.error('Parse error:', e);
             setIsParsingPreset(false);
             return null;
         }
@@ -747,14 +746,39 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
         sendMessage(userMsg.content, false, history);
     }, [messages, sendMessage]);
 
-    const handleDownloadPresets = async () => {
-        if (!selection || modifications.length === 0) return;
+    const handleDownloadPresets = async (mods?: Modification[]) => {
+        const targetMods = mods || modifications;
+        if (!selection || targetMods.length === 0) return;
         const zip = new JSZip();
-        const applyMods = (preset: Record<string, unknown>, name: string) => {
+
+        const applyMods = (preset: Record<string, unknown>, name: string, explicitType: 'process' | 'filament' | 'printer') => {
             const newData = JSON.parse(JSON.stringify(preset));
             let hasChanges = false;
-            for (const mod of modifications) {
-                if (mod.name in newData) { newData[mod.name] = mod.new; hasChanges = true; }
+            
+            for (const mod of targetMods) {
+                let matched = false;
+                
+                // 1. Primary: Automatic Mapping (Source of Truth from Base Files)
+                if (paramCategoryMap) {
+                    if (explicitType === 'process' && paramCategoryMap.process?.includes(mod.name)) matched = true;
+                    else if (explicitType === 'filament' && paramCategoryMap.filament?.includes(mod.name)) matched = true;
+                    else if (explicitType === 'printer' && paramCategoryMap.printer?.includes(mod.name)) matched = true;
+                }
+
+                // 2. Secondary: Fallback to AI-provided category (if mapping failed or not yet loaded)
+                if (!matched && mod.category?.toLowerCase() === explicitType) {
+                    matched = true;
+                }
+
+                // 3. Last Resort: Simple key existence check (backward compatibility)
+                if (!matched && !mod.category && mod.name in newData) {
+                    matched = true;
+                }
+
+                if (matched) {
+                    newData[mod.name] = mod.new;
+                    hasChanges = true;
+                }
             }
             if (!hasChanges) return null;
             const newName = applyRename(name);
@@ -764,11 +788,24 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             if (newData.print_settings_id) newData.print_settings_id = applyRename(String(newData.print_settings_id));
             return { name: newName, data: newData };
         };
-        [selection.printer, selection.process, ...selection.filaments].forEach(p => {
-            if (!p) return;
-            const result = applyMods(p.data as Record<string, unknown>, p.name);
+
+        // 1. Process
+        if (selection.process) {
+            const result = applyMods(selection.process.data as Record<string, unknown>, selection.process.name, 'process');
+            if (result) zip.file(`${result.name}.json`, JSON.stringify(result.data, null, 2));
+        }
+
+        // 2. Filaments
+        selection.filaments.forEach(f => {
+            const result = applyMods(f.data as Record<string, unknown>, f.name, 'filament');
             if (result) zip.file(`${result.name}.json`, JSON.stringify(result.data, null, 2));
         });
+
+        // 3. Printer
+        if (selection.printer) {
+            const result = applyMods(selection.printer.data as Record<string, unknown>, selection.printer.name, 'printer');
+            if (result) zip.file(`${result.name}.json`, JSON.stringify(result.data, null, 2));
+        }
         if (Object.keys(zip.files).length === 0) { alert('没有需要修改的预设参数'); return; }
         
         const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/zip' });
@@ -1039,7 +1076,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
 
                     <div className="p-5 border-t border-secondary/10 space-y-3 shrink-0 bg-secondary/5">
                         <button
-                            onClick={handleDownloadPresets}
+                            onClick={() => handleDownloadPresets()}
                             disabled={!hasPreset}
                             className="btn-cta w-full justify-center py-3 rounded-2xl shadow-lg shadow-cta/20 disabled:scale-100 disabled:opacity-40"
                         >

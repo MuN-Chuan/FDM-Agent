@@ -24,6 +24,7 @@ class DiagnosisRequest(BaseModel):
 
 class Modification(BaseModel):
     name: str = Field(..., description="The internal parameter key name (e.g., 'retraction_distance')")
+    category: str = Field(..., description="The category of the parameter: 'process', 'filament', or 'printer'")
     old: str = Field(..., description="The original value from the user's preset")
     new: str = Field(..., description="The new recommended value")
     range: str = Field(default="N/A", description="The safe/recommended physical range for this parameter")

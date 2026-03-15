@@ -20,7 +20,7 @@ SYSTEM_PROMPT = """你是一个专业的 FDM (熔融沉积成型) 3D 打印顾�
 - 如果用户请求参数修改，需在回答末尾附加一个特殊 JSON 块，格式如下：
 ```json_modifications
 [
-  {"name": "retraction_length", "old": "0.8", "new": "1.2", "range": "0.4-2.0mm", "reason": "减少拉丝", "risk": "low"}
+  {"name": "layer_height", "category": "process", "old": "0.2", "new": "0.16", "range": "0.08-0.32mm", "reason": "提升表面质量", "risk": "low"}
 ]
 ```
 - 如果用户没有明确请求参数修改，不要输出 json_modifications 块

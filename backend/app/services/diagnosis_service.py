@@ -61,7 +61,8 @@ class DiagnosisService:
 必须严格输出合法的 JSON 格式。包含两部分：
 1. "reasoning_markdown": 字符串，使用 Markdown 格式详细写出你的推理和分析过程。
 2. "modifications": 数组，列出建议修改的具体参数。每个项包含：
-   - "name": 参数在预设中的英文键名 (例如 'retraction_length')
+   - "name": 参数在预设中的英文键名 (例如 'layer_height')
+   - "category": 参数所属分类，必须是 "process"、"filament" 或 "printer" 之一
    - "old": 原始值 (基于你推断或默认常识，如果预设中没给全)
    - "new": 建议的新值
    - "range": 该参数的安全或推荐物理范围 (例如 '0.4-2.0mm')
@@ -72,7 +73,7 @@ class DiagnosisService:
 {
   "reasoning_markdown": "### 分析报告\\n根据拉丝缺陷...",
   "modifications": [
-    {"name": "retraction_length", "old": "0.8", "new": "1.2", "range": "0.4-2.0mm", "reason": "增加回抽减少喷嘴遗漏", "risk": "low"}
+    {"name": "layer_height", "category": "process", "old": "0.2", "new": "0.16", "range": "0.08-0.32mm", "reason": "减小层纹并提升细节表现", "risk": "low"}
   ]
 }
 """

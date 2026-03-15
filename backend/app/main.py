@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import diagnosis, chat
+from app.routers import diagnosis, chat, presets
 
 app = FastAPI(
     title="FDM AI Diagnosis API",
@@ -19,6 +19,7 @@ app.add_middleware(
 # Include API routers
 app.include_router(diagnosis.router)
 app.include_router(chat.router)
+app.include_router(presets.router)
 
 @app.get("/health")
 async def health_check():
@@ -26,4 +27,4 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)

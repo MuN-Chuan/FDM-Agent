@@ -26,6 +26,7 @@ export interface ChatRequest {
 
 export interface Modification {
     name: string;
+    category: string;
     old: string;
     new: string;
     range: string;
@@ -129,5 +130,13 @@ export const api = {
         }
 
         await parseStream(response, onUpdate);
+    },
+
+    async getParameterMap(slicer: string): Promise<Record<string, string[]>> {
+        const response = await fetch(`${BASE_URL}/api/presets/parameter_map?slicer=${slicer}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch parameter map');
+        }
+        return response.json();
     },
 };
