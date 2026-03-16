@@ -472,16 +472,18 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
     // ─── 3. Effects (Fixed Order) ─────────────────────────────────────────
     // Load session
     useEffect(() => {
+        let cancelled = false;
         if (currentSessionId) {
-            const session = chatStorage.getSession(currentSessionId);
-            if (session) {
+            void (async () => {
+                const session = await chatStorage.getSession(currentSessionId);
+                if (!session || cancelled) return;
                 setMessages(session.messages);
                 setModifications(session.modifications || []);
                 setPresetFileName(session.presetFileName || null);
                 if (session.selection && session.bundle) {
                     restoreBundle(session.bundle, session.selection);
                 }
-            }
+            })();
         } else {
             setMessages([{
                 id: 'welcome',
@@ -493,13 +495,17 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             setPendingFiles([]);
             setPendingImage(null);
         }
+        return () => {
+            cancelled = true;
+        };
     }, [currentSessionId, restoreBundle]);
 
     // Auto-save
     useEffect(() => {
         if (!currentSessionId && messages.length <= 1) return;
         if (currentSessionId) {
-            const currentData = chatStorage.getSession(currentSessionId);
+            void (async () => {
+                const currentData = await chatStorage.getSession(currentSessionId);
             const sessionData: ChatSessionData = {
                 id: currentSessionId,
                 title: currentData?.title || messages.find(m => m.role === 'user')?.content.substring(0, 30) || '新对话',
@@ -510,7 +516,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                 bundle,
                 presetFileName
             };
-            chatStorage.saveSession(sessionData);
+                await chatStorage.saveSession(sessionData);
+            })();
         }
     }, [messages, modifications, selection, bundle, presetFileName, currentSessionId]);
 

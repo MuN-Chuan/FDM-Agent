@@ -1,29 +1,46 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import diagnosis, chat, presets
+from fastapi.staticfiles import StaticFiles
+
+from app.core.config import settings
+from app.db import models  # noqa: F401
+from app.db.base import Base
+from app.db.session import engine
+from app.routers import auth, chat, diagnosis, presets
 
 app = FastAPI(
-    title="FDM AI Diagnosis API",
+    title=settings.PROJECT_NAME,
     description="Backend service for analyzing FDM print defects using vision models and LLMs.",
-    version="1.0.0"
+    version=settings.VERSION
 )
 
-# Configure CORS for frontend access
+if settings.AUTO_CREATE_TABLES:
+    Base.metadata.create_all(bind=engine)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust in production
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include API routers
+app.include_router(auth.router)
 app.include_router(diagnosis.router)
 app.include_router(chat.router)
 app.include_router(presets.router)
 
+frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "FDM AI Diagnosis"}
+
 
 if __name__ == "__main__":
     import uvicorn

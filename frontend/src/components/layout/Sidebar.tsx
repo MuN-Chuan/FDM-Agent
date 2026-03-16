@@ -45,9 +45,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
     const [history, setHistory] = React.useState<ChatSessionMetadata[]>([]);
 
     React.useEffect(() => {
+        let cancelled = false;
         if (activeTab === 'history') {
-            setHistory(chatStorage.listSessions());
+            void chatStorage.listSessions().then((sessions) => {
+                if (!cancelled) {
+                    setHistory(sessions);
+                }
+            });
         }
+        return () => {
+            cancelled = true;
+        };
     }, [activeTab, currentSessionId]);
 
     const handleNewChat = () => {

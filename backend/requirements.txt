@@ -2,7 +2,11 @@ fastapi
 uvicorn
 pydantic
 python-multipart
-# Add LLM clients later
 pydantic-settings
-zhipuai
 openai
+sqlalchemy
+alembic
+psycopg[binary]
+passlib[bcrypt]
+python-jose[cryptography]
+email-validator
