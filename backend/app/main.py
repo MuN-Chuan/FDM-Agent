@@ -32,14 +32,15 @@ app.include_router(diagnosis.router)
 app.include_router(chat.router)
 app.include_router(presets.router)
 
-frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
-if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
-
 
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "FDM AI Diagnosis"}
+
+
+frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
 
 
 if __name__ == "__main__":
