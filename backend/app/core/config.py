@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     CHAT_STREAM_RATE_LIMIT_WINDOW_SECONDS: int = 60
     REGISTRATION_MODE: str = "open"
     INVITE_CODES: list[str] = Field(default_factory=list)
+    DEFAULT_USER_POINTS: int = 1000
+    EMAIL_LOGIN_CODE_EXPIRE_MINUTES: int = 10
+    EMAIL_LOGIN_DEBUG_RETURN_CODE: bool = True
+    EMAIL_LOGIN_SENDER: str = "no-reply@example.com"
 
     CORS_ORIGINS: list[str] = Field(
         default_factory=lambda: [

@@ -1,6 +1,8 @@
 import React from 'react';
-import { Bell, LayoutGrid, LogOut, Search, User } from 'lucide-react';
+import { Bell, Coins, Languages, LayoutGrid, LogOut, Search, User } from 'lucide-react';
+
 import type { UserProfile } from '../../api/api';
+import { useI18n } from '../../i18n/I18nProvider';
 
 interface TopbarProps {
     isBorderless?: boolean;
@@ -10,17 +12,21 @@ interface TopbarProps {
 }
 
 export const Topbar: React.FC<TopbarProps> = ({ isBorderless, currentUser, onOpenAuth, onLogout }) => {
+    const { locale, setLocale, t } = useI18n();
+
     return (
-        <header className={`h-16 flex items-center justify-between px-8 bg-background-light dark:bg-background-dark sticky top-0 z-40 ${
-            isBorderless ? '' : 'border-b border-secondary/10'
-        }`}>
-            <div className="flex items-center gap-4 flex-1 max-w-sm">
+        <header
+            className={`sticky top-0 z-40 flex h-16 items-center justify-between bg-background-light px-8 dark:bg-background-dark ${
+                isBorderless ? '' : 'border-b border-secondary/10'
+            }`}
+        >
+            <div className="flex max-w-sm flex-1 items-center gap-4">
                 <div className="relative w-full">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-light/40 w-4 h-4" />
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-light/40" />
                     <input
                         type="text"
-                        placeholder="搜索功能、帮助或常见问题..."
-                        className="w-full bg-secondary/5 border border-secondary/10 rounded-full py-1.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-cta/20 focus:border-cta/40 transition-all font-body"
+                        placeholder={t('topbar.search')}
+                        className="w-full rounded-full border border-secondary/10 bg-secondary/5 py-1.5 pl-10 pr-4 text-sm font-body transition-all focus:border-cta/40 focus:outline-none focus:ring-2 focus:ring-cta/20"
                     />
                 </div>
             </div>
@@ -28,37 +34,61 @@ export const Topbar: React.FC<TopbarProps> = ({ isBorderless, currentUser, onOpe
             <div className="flex-1" />
 
             <div className="flex items-center gap-6">
-                <div className="hidden lg:flex items-center gap-4 px-4 py-1.5 bg-cta/5 border border-cta/10 rounded-full">
-                    <div className="w-2 h-2 bg-cta rounded-full animate-pulse" />
-                    <span className="text-[11px] font-bold text-cta uppercase tracking-widest">测试模式</span>
+                <div className="hidden items-center gap-4 rounded-full border border-cta/10 bg-cta/5 px-4 py-1.5 lg:flex">
+                    <div className="h-2 w-2 animate-pulse rounded-full bg-cta" />
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-cta">{t('topbar.testMode')}</span>
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <button className="p-2 text-text-light/60 hover:text-cta transition-colors relative cursor-pointer">
+                    <div className="flex items-center gap-1 rounded-full border border-secondary/10 bg-secondary/5 px-2 py-1">
+                        <Languages size={16} className="text-text-light/40" />
+                        <button
+                            onClick={() => setLocale('zh')}
+                            className={`rounded-full px-2 py-1 text-[11px] font-bold transition-colors ${
+                                locale === 'zh' ? 'bg-white text-cta shadow-sm' : 'text-text-light/50'
+                            }`}
+                        >
+                            {t('topbar.lang.zh')}
+                        </button>
+                        <button
+                            onClick={() => setLocale('en')}
+                            className={`rounded-full px-2 py-1 text-[11px] font-bold transition-colors ${
+                                locale === 'en' ? 'bg-white text-cta shadow-sm' : 'text-text-light/50'
+                            }`}
+                        >
+                            {t('topbar.lang.en')}
+                        </button>
+                    </div>
+
+                    <button className="relative cursor-pointer p-2 text-text-light/60 transition-colors hover:text-cta">
                         <Bell size={20} />
-                        <span className="absolute top-2 right-2 w-2 h-2 bg-cta rounded-full border-2 border-background-light dark:border-background-dark" />
+                        <span className="absolute right-2 top-2 h-2 w-2 rounded-full border-2 border-background-light bg-cta dark:border-background-dark" />
                     </button>
-                    <button className="p-2 text-text-light/60 hover:text-cta transition-colors cursor-pointer">
+                    <button className="cursor-pointer p-2 text-text-light/60 transition-colors hover:text-cta">
                         <LayoutGrid size={20} />
                     </button>
 
-                    <div className="h-6 w-[1px] bg-secondary/10 mx-2" />
+                    <div className="mx-2 h-6 w-[1px] bg-secondary/10" />
 
                     {currentUser ? (
                         <div className="flex items-center gap-3 rounded-2xl border border-secondary/10 bg-secondary/5 px-3 py-1.5">
-                            <div className="text-right hidden sm:block">
+                            <div className="hidden text-right sm:block">
                                 <p className="text-xs font-bold leading-none">{currentUser.email}</p>
-                                <p className="text-[10px] text-text-light/40 mt-1 uppercase tracking-tighter">
-                                    {currentUser.role}
-                                </p>
+                                <div className="mt-1 flex items-center justify-end gap-2 text-[10px] text-text-light/40">
+                                    <span className="uppercase tracking-tighter">{currentUser.role}</span>
+                                    <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-amber-600">
+                                        <Coins size={10} />
+                                        {t('topbar.points')}: {currentUser.points_balance}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="w-8 h-8 rounded-full bg-cta/20 flex items-center justify-center border-2 border-cta/20">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-cta/20 bg-cta/20">
                                 <User size={18} className="text-cta" />
                             </div>
                             <button
                                 onClick={onLogout}
-                                className="p-2 text-text-light/50 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
-                                title="退出登录"
+                                className="rounded-full p-2 text-text-light/50 transition-colors hover:bg-rose-50 hover:text-rose-500"
+                                title={t('topbar.logout')}
                             >
                                 <LogOut size={16} />
                             </button>
@@ -66,13 +96,13 @@ export const Topbar: React.FC<TopbarProps> = ({ isBorderless, currentUser, onOpe
                     ) : (
                         <button
                             onClick={onOpenAuth}
-                            className="flex items-center gap-3 hover:bg-secondary/5 p-1 px-2 rounded-lg transition-colors cursor-pointer border border-secondary/10 bg-white/70"
+                            className="flex cursor-pointer items-center gap-3 rounded-lg border border-secondary/10 bg-white/70 p-1 px-2 transition-colors hover:bg-secondary/5"
                         >
-                            <div className="text-right hidden sm:block">
-                                <p className="text-xs font-bold leading-none">访客</p>
-                                <p className="text-[10px] text-text-light/40 mt-1 uppercase tracking-tighter">登录</p>
+                            <div className="hidden text-right sm:block">
+                                <p className="text-xs font-bold leading-none">{t('topbar.guest')}</p>
+                                <p className="mt-1 text-[10px] uppercase tracking-tighter text-text-light/40">{t('topbar.login')}</p>
                             </div>
-                            <div className="w-8 h-8 rounded-full bg-cta/20 flex items-center justify-center border-2 border-cta/20">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-cta/20 bg-cta/20">
                                 <User size={18} className="text-cta" />
                             </div>
                         </button>

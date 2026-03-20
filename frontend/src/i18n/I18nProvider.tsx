@@ -1,0 +1,242 @@
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+
+type Locale = 'zh' | 'en';
+
+type Messages = Record<string, string>;
+
+const zhMessages: Messages = {
+    'topbar.search': '\u641c\u7d22\u529f\u80fd\u3001\u5e2e\u52a9\u6216\u5e38\u89c1\u95ee\u9898...',
+    'topbar.testMode': '\u6d4b\u8bd5\u6a21\u5f0f',
+    'topbar.logout': '\u9000\u51fa\u767b\u5f55',
+    'topbar.guest': '\u8bbf\u5ba2',
+    'topbar.login': '\u767b\u5f55',
+    'topbar.points': '\u79ef\u5206',
+    'topbar.lang.zh': '\u4e2d\u6587',
+    'topbar.lang.en': 'English',
+    'sidebar.tools': '\u5de5\u5177',
+    'sidebar.history': '\u5386\u53f2',
+    'sidebar.dashboard': '\u9996\u9875 / \u5de5\u4f5c\u53f0',
+    'sidebar.chat': 'AI \u7b54\u7591',
+    'sidebar.historyLabel': '\u5386\u53f2\u8bb0\u5f55',
+    'sidebar.presets': '\u9884\u8bbe\u7ba1\u7406',
+    'sidebar.reports': '\u62a5\u544a\u4e2d\u5fc3',
+    'sidebar.subscription': '\u8ba2\u9605\u4e2d\u5fc3',
+    'sidebar.futureTools': '\u672a\u6765\u5de5\u5177',
+    'sidebar.future.flow': '\u6d41\u91cf\u8ba1\u7b97',
+    'sidebar.future.simplify': '\u7f51\u683c\u7b80\u5316',
+    'sidebar.future.purge': '\u6e05\u6d17\u7ebf',
+    'sidebar.future.clean': 'G-code \u6e05\u7406',
+    'sidebar.newChat': '\u65b0\u5efa\u5bf9\u8bdd',
+    'sidebar.recentSessions': '\u6700\u8fd1\u4f1a\u8bdd',
+    'sidebar.noSessions': '\u6682\u65e0\u5386\u53f2\u4f1a\u8bdd',
+    'sidebar.help': '\u5e2e\u52a9\u4e2d\u5fc3',
+    'sidebar.settings': '\u8bbe\u7f6e\u4e2d\u5fc3',
+    'auth.account': '\u8d26\u53f7',
+    'auth.loginTitle': '\u767b\u5f55',
+    'auth.registerTitle': '\u521b\u5efa\u6d4b\u8bd5\u8d26\u53f7',
+    'auth.passwordMode': '\u5bc6\u7801\u767b\u5f55',
+    'auth.emailCodeMode': '\u90ae\u7bb1\u9a8c\u8bc1\u7801\u767b\u5f55',
+    'auth.loginDesc': '\u767b\u5f55\u540e\u5373\u53ef\u540c\u6b65\u8d26\u53f7\u4fe1\u606f\u4e0e\u79ef\u5206\u72b6\u6001\u3002',
+    'auth.registerDesc': '\u6d4b\u8bd5\u9636\u6bb5\u53ef\u76f4\u63a5\u521b\u5efa\u8d26\u53f7\uff0c\u79ef\u5206\u7531\u540e\u53f0\u7edf\u4e00\u63a7\u5236\u3002',
+    'auth.registrationClosed': '\u5f53\u524d\u6682\u672a\u5f00\u653e\u6ce8\u518c\uff0c\u5df2\u6709\u6d4b\u8bd5\u8d26\u53f7\u4ecd\u53ef\u767b\u5f55\u3002',
+    'auth.inviteRequired': '\u5f53\u524d\u6ce8\u518c\u9700\u8981\u9080\u8bf7\u7801\u3002',
+    'auth.loginTab': '\u767b\u5f55',
+    'auth.registerTab': '\u6ce8\u518c',
+    'auth.email': '\u90ae\u7bb1',
+    'auth.password': '\u5bc6\u7801',
+    'auth.code': '\u9a8c\u8bc1\u7801',
+    'auth.inviteCode': '\u9080\u8bf7\u7801',
+    'auth.sendCode': '\u53d1\u9001\u9a8c\u8bc1\u7801',
+    'auth.resendCode': '\u91cd\u65b0\u53d1\u9001',
+    'auth.emailPlaceholder': 'you@example.com',
+    'auth.passwordPlaceholder': '\u81f3\u5c11 8 \u4f4d\u5b57\u7b26',
+    'auth.codePlaceholder': '\u8f93\u5165 6 \u4f4d\u9a8c\u8bc1\u7801',
+    'auth.inviteRequiredPlaceholder': '\u5fc5\u586b',
+    'auth.inviteOptionalPlaceholder': '\u9009\u586b',
+    'auth.loginSubmit': '\u767b\u5f55',
+    'auth.codeLoginSubmit': '\u9a8c\u8bc1\u7801\u767b\u5f55',
+    'auth.registerSubmit': '\u6ce8\u518c\u5e76\u5f00\u59cb\u4f7f\u7528',
+    'auth.codeSent': '\u9a8c\u8bc1\u7801\u5df2\u53d1\u9001\u3002\u6d4b\u8bd5\u9636\u6bb5\u5982\u672a\u63a5\u5165\u90ae\u4ef6\u670d\u52a1\uff0c\u53ef\u4f7f\u7528\u540e\u53f0\u8fd4\u56de\u7684\u8c03\u8bd5\u9a8c\u8bc1\u7801\u3002',
+    'auth.debugCode': '\u8c03\u8bd5\u9a8c\u8bc1\u7801',
+    'chat.welcome':
+        '\u4f60\u597d\uff01\u6211\u662f FDM 3D \u6253\u5370 AI \u987e\u95ee\u3002\n\n\u6211\u53ef\u4ee5\u5e2e\u52a9\u4f60\uff1a\n- \u8bca\u65ad\u6253\u5370\u7f3a\u9677\n- \u4f18\u5316\u5207\u7247\u53c2\u6570\n- \u5206\u6790\u4e0a\u4f20\u56fe\u7247\n- \u6839\u636e\u9884\u8bbe\u7ed9\u51fa\u5177\u4f53\u5efa\u8bae\n\n\u4f60\u53ef\u4ee5\u4e0a\u4f20\u56fe\u7247\u3001\u9884\u8bbe\u5305\u6216\u9644\u4ef6\uff0c\u7136\u540e\u76f4\u63a5\u63d0\u95ee\u3002',
+    'chat.inputPlaceholder': '\u63cf\u8ff0\u4f60\u7684\u95ee\u9898\uff0c\u6216\u4e0a\u4f20\u9884\u8bbe\u5305\u3001\u9644\u4ef6\u3001\u56fe\u7247...',
+    'chat.warning': 'AI \u53ef\u80fd\u4f1a\u4ea7\u751f\u9519\u8bef\uff0c\u6b63\u5f0f\u6253\u5370\u524d\u8bf7\u68c0\u67e5\u5173\u952e\u53c2\u6570\u3002',
+    'chat.thought': 'AI \u601d\u8003',
+    'chat.modifications': '\u53c2\u6570\u4fee\u6539\u5efa\u8bae',
+    'chat.downloadPreset': '\u4e0b\u8f7d\u4fee\u6539\u540e\u7684\u9884\u8bbe\u5305',
+    'chat.requestMods': '\u5e2e\u6211\u4fee\u6539\u9884\u8bbe\u53c2\u6570',
+    'chat.regenerate': '\u91cd\u65b0\u56de\u7b54',
+    'chat.edit': '\u7f16\u8f91\u6d88\u606f',
+    'chat.cancel': '\u53d6\u6d88',
+    'chat.retry': '\u53d1\u9001\u5e76\u91cd\u8bd5',
+    'chat.uploadImage': '\u4e0a\u4f20\u56fe\u7247',
+    'chat.uploadPreset': '\u4e0a\u4f20\u9884\u8bbe\u5305',
+    'chat.uploadAttachment': '\u4e0a\u4f20\u9644\u4ef6',
+    'chat.defectRecognition': '\u7f3a\u9677\u8bc6\u522b',
+    'chat.configurePreset': '\u914d\u7f6e\u9884\u8bbe',
+    'chat.removePreset': '\u79fb\u9664\u9884\u8bbe',
+    'chat.removeAttachment': '\u79fb\u9664\u9644\u4ef6',
+    'chat.presetValidation': '\u9884\u8bbe\u9009\u62e9\u4e0d\u5b8c\u6574\u6216\u4e0d\u5339\u914d\uff0c\u8bf7\u5148\u4fee\u6b63\u540e\u518d\u53d1\u9001\u3002',
+    'chat.internalAttachmentStart': '\u5185\u5bb9\u9644\u4ef6',
+    'chat.internalAttachmentEnd': '\u9644\u4ef6\u7ed3\u675f',
+    'chat.modelNoVision': '\u5f53\u524d\u6a21\u578b [{model}] \u4e0d\u652f\u6301\u56fe\u50cf\u5206\u6790\uff0c\u8bf7\u5207\u6362\u5230\u652f\u6301\u89c6\u89c9\u7684\u6a21\u578b\u3002',
+    'chat.aiServiceError': 'AI \u670d\u52a1\u9519\u8bef\uff1a{message}',
+    'chat.connectionError': '\u8fde\u63a5\u9519\u8bef\uff1a{message}',
+    'chat.tokens': 'Tokens',
+    'chat.cached': '\u7f13\u5b58',
+    'chat.total': '\u603b\u8ba1',
+    'defect.title': '\u6253\u5370\u7f3a\u9677\u8bc6\u522b',
+    'defect.subtitle': '\uff08\u4ec5\u4f9b\u53c2\u8003\uff09',
+    'defect.uploadTitle': '\u70b9\u51fb\u4e0a\u4f20\u56fe\u7247\u8fdb\u884c\u8bc6\u522b',
+    'defect.uploadHint': '\u652f\u6301 JPG\u3001PNG \u683c\u5f0f',
+    'defect.running': '\u6b63\u5728\u8bc6\u522b...',
+    'defect.loading': '\u6a21\u578b\u52a0\u8f7d\u4e2d...',
+    'defect.start': '\u5f00\u59cb\u8bc6\u522b',
+    'defect.results': '\u8bc6\u522b\u7ed3\u679c\uff08Top 3\uff09',
+    'defect.tip': '\u63d0\u793a\uff1a\u4ee5\u4e0a\u7ed3\u679c\u4ec5\u4f9b\u53c2\u8003\uff0c\u4f60\u53ef\u4ee5\u57fa\u4e8e\u8bc6\u522b\u7ed3\u679c\u7ee7\u7eed\u5411 AI \u63d0\u95ee\u3002',
+};
+
+const enMessages: Messages = {
+    'topbar.search': 'Search features, help, or FAQs...',
+    'topbar.testMode': 'TEST MODE',
+    'topbar.logout': 'Log out',
+    'topbar.guest': 'Guest',
+    'topbar.login': 'Login',
+    'topbar.points': 'Points',
+    'topbar.lang.zh': '中文',
+    'topbar.lang.en': 'English',
+    'sidebar.tools': 'Tools',
+    'sidebar.history': 'History',
+    'sidebar.dashboard': 'Home / Workspace',
+    'sidebar.chat': 'AI Assistant',
+    'sidebar.historyLabel': 'History',
+    'sidebar.presets': 'Preset Manager',
+    'sidebar.reports': 'Reports',
+    'sidebar.subscription': 'Subscription',
+    'sidebar.futureTools': 'Future Tools',
+    'sidebar.future.flow': 'Flow Calc',
+    'sidebar.future.simplify': 'Mesh Simplify',
+    'sidebar.future.purge': 'Purge Line',
+    'sidebar.future.clean': 'G-code Cleanup',
+    'sidebar.newChat': 'New Chat',
+    'sidebar.recentSessions': 'Recent Sessions',
+    'sidebar.noSessions': 'No chat history yet',
+    'sidebar.help': 'Help Center',
+    'sidebar.settings': 'Settings',
+    'auth.account': 'Account',
+    'auth.loginTitle': 'Sign in',
+    'auth.registerTitle': 'Create test account',
+    'auth.passwordMode': 'Password',
+    'auth.emailCodeMode': 'Email code login',
+    'auth.loginDesc': 'Sign in to sync account status and points.',
+    'auth.registerDesc': 'During testing, you can create an account directly. Points are managed by the backend.',
+    'auth.registrationClosed': 'Registration is currently closed. Existing test accounts can still sign in.',
+    'auth.inviteRequired': 'Registration currently requires an invite code.',
+    'auth.loginTab': 'Sign in',
+    'auth.registerTab': 'Register',
+    'auth.email': 'Email',
+    'auth.password': 'Password',
+    'auth.code': 'Verification code',
+    'auth.inviteCode': 'Invite code',
+    'auth.sendCode': 'Send code',
+    'auth.resendCode': 'Resend',
+    'auth.emailPlaceholder': 'you@example.com',
+    'auth.passwordPlaceholder': 'At least 8 characters',
+    'auth.codePlaceholder': 'Enter 6-digit code',
+    'auth.inviteRequiredPlaceholder': 'Required',
+    'auth.inviteOptionalPlaceholder': 'Optional',
+    'auth.loginSubmit': 'Sign in',
+    'auth.codeLoginSubmit': 'Sign in with code',
+    'auth.registerSubmit': 'Register and start',
+    'auth.codeSent': 'Verification code sent. During testing, you can use the backend debug code if email is not configured.',
+    'auth.debugCode': 'Debug code',
+    'chat.welcome':
+        'Hello! I am your FDM 3D printing AI advisor.\n\nI can help you:\n- Diagnose print defects\n- Optimize slicing parameters\n- Analyze uploaded images\n- Suggest changes based on presets\n\nUpload an image, preset bundle, or attachment and ask away.',
+    'chat.inputPlaceholder': 'Describe your issue, or upload preset bundles, attachments, or images...',
+    'chat.warning': 'AI can make mistakes. Please review key parameters before printing.',
+    'chat.thought': 'AI Thought',
+    'chat.modifications': 'Parameter Suggestions',
+    'chat.downloadPreset': 'Download Updated Preset Bundle',
+    'chat.requestMods': 'Help me adjust preset parameters',
+    'chat.regenerate': 'Regenerate',
+    'chat.edit': 'Edit message',
+    'chat.cancel': 'Cancel',
+    'chat.retry': 'Send and retry',
+    'chat.uploadImage': 'Upload image',
+    'chat.uploadPreset': 'Upload preset bundle',
+    'chat.uploadAttachment': 'Upload attachment',
+    'chat.defectRecognition': 'Defect recognition',
+    'chat.configurePreset': 'Configure preset',
+    'chat.removePreset': 'Remove preset',
+    'chat.removeAttachment': 'Remove attachment',
+    'chat.presetValidation': 'Preset selection is incomplete or mismatched. Please fix it before sending.',
+    'chat.internalAttachmentStart': 'Attachment content',
+    'chat.internalAttachmentEnd': 'End of attachment',
+    'chat.modelNoVision': 'Current model [{model}] does not support image analysis. Please switch to a vision-capable model.',
+    'chat.aiServiceError': 'AI service error: {message}',
+    'chat.connectionError': 'Connection error: {message}',
+    'chat.tokens': 'Tokens',
+    'chat.cached': 'Cached',
+    'chat.total': 'Total',
+    'defect.title': 'Print Defect Recognition',
+    'defect.subtitle': '(for reference only)',
+    'defect.uploadTitle': 'Click to upload an image for recognition',
+    'defect.uploadHint': 'Supports JPG and PNG',
+    'defect.running': 'Recognizing...',
+    'defect.loading': 'Model loading...',
+    'defect.start': 'Start recognition',
+    'defect.results': 'Recognition Results (Top 3)',
+    'defect.tip': 'Tip: These results are for reference only. You can continue asking AI based on them.',
+};
+
+const messages: Record<Locale, Messages> = { zh: zhMessages, en: enMessages };
+
+interface I18nContextValue {
+    locale: Locale;
+    setLocale: (locale: Locale) => void;
+    t: (key: string, params?: Record<string, string | number>) => string;
+}
+
+const I18nContext = createContext<I18nContextValue | null>(null);
+
+function interpolate(template: string, params?: Record<string, string | number>) {
+    if (!params) {
+        return template;
+    }
+
+    return Object.entries(params).reduce(
+        (result, [key, value]) => result.replaceAll(`{${key}}`, String(value)),
+        template,
+    );
+}
+
+export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [locale, setLocaleState] = useState<Locale>(() => {
+        const stored = localStorage.getItem('fdm_locale');
+        return stored === 'en' ? 'en' : 'zh';
+    });
+
+    useEffect(() => {
+        localStorage.setItem('fdm_locale', locale);
+    }, [locale]);
+
+    const value = useMemo<I18nContextValue>(
+        () => ({
+            locale,
+            setLocale: setLocaleState,
+            t: (key, params) => interpolate(messages[locale][key] || zhMessages[key] || key, params),
+        }),
+        [locale],
+    );
+
+    return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+};
+
+export function useI18n() {
+    const context = useContext(I18nContext);
+    if (!context) {
+        throw new Error('useI18n must be used within I18nProvider');
+    }
+    return context;
+}

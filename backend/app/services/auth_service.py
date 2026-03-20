@@ -7,11 +7,11 @@ from typing import Any
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import RefreshToken, User
+from app.db.models import EmailLoginCode, RefreshToken, User
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -136,6 +136,7 @@ class AuthService:
             email=normalized_email,
             password_hash=self.hash_password(password),
             invite_code_used=normalized_code,
+            points_balance=settings.DEFAULT_USER_POINTS,
         )
         db.add(user)
         db.commit()
@@ -156,6 +157,54 @@ class AuthService:
 
     def hash_refresh_token(self, refresh_token: str) -> str:
         return hashlib.sha256(refresh_token.encode("utf-8")).hexdigest()
+
+    def hash_email_code(self, code: str) -> str:
+        return hashlib.sha256(code.encode("utf-8")).hexdigest()
+
+    def create_email_login_code(self, db: Session, email: str) -> str:
+        normalized_email = email.lower()
+        code = f"{secrets.randbelow(900000) + 100000}"
+
+        db.execute(delete(EmailLoginCode).where(EmailLoginCode.email == normalized_email))
+        record = EmailLoginCode(
+            email=normalized_email,
+            user_id=self.get_user_by_email(db, normalized_email).id if self.get_user_by_email(db, normalized_email) else None,
+            code_hash=self.hash_email_code(code),
+            expires_at=datetime.now(UTC) + timedelta(minutes=settings.EMAIL_LOGIN_CODE_EXPIRE_MINUTES),
+        )
+        db.add(record)
+        db.commit()
+        return code
+
+    def login_with_email_code(self, db: Session, email: str, code: str) -> User:
+        normalized_email = email.lower()
+        record = db.scalar(
+            select(EmailLoginCode)
+            .where(EmailLoginCode.email == normalized_email)
+            .order_by(EmailLoginCode.created_at.desc())
+        )
+        if record is None:
+            raise ValueError("Verification code not found")
+        if record.consumed_at is not None:
+            raise ValueError("Verification code already used")
+        if record.expires_at < datetime.now(UTC):
+            raise ValueError("Verification code expired")
+        if record.code_hash != self.hash_email_code(code):
+            raise ValueError("Verification code is invalid")
+
+        user = self.get_user_by_email(db, normalized_email)
+        if user is None:
+            raise ValueError("Email is not registered")
+
+        record.consumed_at = datetime.now(UTC)
+        record.user_id = user.id
+        db.add(record)
+        db.commit()
+        db.refresh(user)
+        return user
+
+    def send_email_login_code(self, email: str, code: str) -> None:
+        print(f"[email-login] Send code {code} to {email} from {settings.EMAIL_LOGIN_SENDER}")
 
     def parse_user_from_access_token(self, db: Session, token: str) -> User | None:
         try:

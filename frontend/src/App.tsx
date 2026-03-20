@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { MainLayout } from './components/layout/MainLayout'
 import { AuthModal } from './components/auth/AuthModal'
-import { DiagnosisDashboard } from './pages/DiagnosisDashboard'
 import { AIChatPage } from './pages/AIChatPage'
 import { api, type UserProfile } from './api/api'
+import { I18nProvider } from './i18n/I18nProvider'
 
-export type AppPage = 'diagnosis' | 'chat';
+export type AppPage = 'chat';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<AppPage>('chat');
@@ -49,37 +49,36 @@ function App() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'diagnosis':
-        return <DiagnosisDashboard />;
       case 'chat':
-        return <AIChatPage currentSessionId={currentSessionId} onSessionChange={setCurrentSessionId} />;
       default:
         return <AIChatPage currentSessionId={currentSessionId} onSessionChange={setCurrentSessionId} />;
     }
   };
 
   return (
-    <>
-      <MainLayout
-        currentPage={currentPage}
-        onNavigate={handleNavigate}
-        currentSessionId={currentSessionId}
-        onSessionChange={setCurrentSessionId}
-        currentUser={currentUser}
-        onOpenAuth={() => setIsAuthModalOpen(true)}
-        onLogout={() => { void handleLogout(); }}
-      >
-        {renderPage()}
-      </MainLayout>
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onAuthSuccess={(user) => {
-          setCurrentUser(user);
-          setIsAuthModalOpen(false);
-        }}
-      />
-    </>
+    <I18nProvider>
+      <>
+        <MainLayout
+          currentPage={currentPage}
+          onNavigate={handleNavigate}
+          currentSessionId={currentSessionId}
+          onSessionChange={setCurrentSessionId}
+          currentUser={currentUser}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          onLogout={() => { void handleLogout(); }}
+        >
+          {renderPage()}
+        </MainLayout>
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          onAuthSuccess={(user) => {
+            setCurrentUser(user);
+            setIsAuthModalOpen(false);
+          }}
+        />
+      </>
+    </I18nProvider>
   )
 }
 
