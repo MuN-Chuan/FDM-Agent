@@ -1,17 +1,55 @@
-# .gitignore — 忽略指定项目文件夹
-
+# Project-specific reference and archive directories
 /预设文件/
 /项目信息/
 /ai_model/
 /design-system/
 /.agent/
 /backup/
-/项目功能进度与后端开发说明.txt
+/切片软件源码/
+
+# Temporary local files used during preset/debug work
 /tmp_bundle.txt
 /tmp_process.txt
 /tmp_orca_bundle.txt
+/debug_results.txt
+/debug_results_expanded.txt
+/test_output.txt
+/test_payload.json
+/test_response.json
+
+# Local ad-hoc tests and notes at repo root
 /test/
-/切片软件源码/
+/项目功能进度与后端开发说明.txt
 /*.txt
 /*.json
 /*.md
+
+# Python cache and tooling
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local databases and logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Frontend build and package manager output
+frontend/dist/
+frontend/node_modules/
+coverage/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
