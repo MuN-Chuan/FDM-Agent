@@ -12,20 +12,12 @@ import { ApiSettingsModal } from '../features/diagnosis/ApiSettingsModal';
 import { DefectRecognitionModal } from '../features/diagnosis/DefectRecognitionModal';
 import { PresetSelectionModal } from '../features/diagnosis/PresetSelectionModal';
 import { usePresetParser } from '../features/diagnosis/usePresetParser';
+import { useI18n } from '../i18n/I18nProvider';
 
 interface AIChatPageProps {
     currentSessionId: string | null;
     onSessionChange: (id: string | null) => void;
 }
-
-const WELCOME =
-    '你好！我是 FDM 3D 打印 AI 顾问。\n\n我可以帮助你：\n- 诊断打印缺陷\n- 优化切片参数\n- 分析上传图片\n- 根据预设给出具体建议\n\n你可以上传图片或预设文件，然后直接提问。';
-
-const createWelcomeMessage = (): ChatUIMessage => ({
-    id: 'welcome',
-    role: 'assistant',
-    content: WELCOME,
-});
 
 const isVisionModel = (modelName: string) => {
     const value = modelName.toLowerCase();
@@ -41,6 +33,7 @@ interface PendingFile {
 }
 
 export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSessionChange }) => {
+    const { t } = useI18n();
     const {
         bundle,
         isParsing: isParsingPreset,
@@ -51,6 +44,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
         restoreBundle,
         resetPresetState,
     } = usePresetParser();
+
+    const createWelcomeMessage = useCallback(
+        (): ChatUIMessage => ({
+            id: 'welcome',
+            role: 'assistant',
+            content: t('chat.welcome'),
+        }),
+        [t],
+    );
 
     const {
         messages,
@@ -247,13 +249,18 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
 
             const apiSettings = loadApiSettings();
             if (pendingImage && !isVisionModel(apiSettings.model_name)) {
-                alert(`Current model [${apiSettings.model_name}] does not support image analysis. Please switch to a vision model.`);
+                alert(t('chat.modelNoVision', { model: apiSettings.model_name }));
                 return;
             }
 
             const internalContextText =
                 activeFiles.length > 0
-                    ? activeFiles.map((file) => `--- 内容附件: ${file.name} ---\n${file.content}\n--- 附件结束 ---`).join('\n\n')
+                    ? activeFiles
+                          .map(
+                              (file) =>
+                                  `--- ${t('chat.internalAttachmentStart')}: ${file.name} ---\n${file.content}\n--- ${t('chat.internalAttachmentEnd')} ---`,
+                          )
+                          .join('\n\n')
                     : '';
             const finalContentToSend = internalContextText ? `${internalContextText}\n\n${text}` : text;
 
@@ -359,12 +366,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                         }
 
                         if (chunk.type === 'error') {
+                            const errorMessage = chunk.message || 'Unknown error';
                             setMessages((current) =>
                                 current.map((message) =>
                                     message.id === assistantId
                                         ? {
                                               ...message,
-                                              content: `AI service error: ${chunk.message}`,
+                                              content: t('chat.aiServiceError', { message: errorMessage }),
                                               isStreaming: false,
                                           }
                                         : message,
@@ -379,7 +387,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                 setMessages((current) =>
                     current.map((entry) =>
                         entry.id === assistantId
-                            ? { ...entry, content: `Connection error: ${message}`, isStreaming: false }
+                            ? { ...entry, content: t('chat.connectionError', { message }), isStreaming: false }
                             : entry,
                     ),
                 );
@@ -403,6 +411,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             setModifications,
             setPendingImage,
             setPresetFileName,
+            t,
         ],
     );
 

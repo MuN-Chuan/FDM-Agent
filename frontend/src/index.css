@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-heading: "Space Grotesk", sans-serif;
@@ -25,13 +26,7 @@
   font-family: var(--font-body);
   background-color: var(--color-background-light);
   color: var(--color-text-light);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    background-color: var(--color-background-dark);
-    color: var(--color-text-dark);
-  }
+  color-scheme: light;
 }
 
 h1, h2, h3, h4, h5, h6 {

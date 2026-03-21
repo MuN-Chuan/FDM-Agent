@@ -9,6 +9,10 @@ from app.db.session import get_db
 from app.dependencies.auth import get_current_user
 from app.schemas.auth import (
     AuthResponse,
+    EmailCodeLoginRequest,
+    EmailCodeRegisterRequest,
+    EmailCodeRequest,
+    EmailCodeResponse,
     LoginRequest,
     MessageResponse,
     RegisterRequest,
@@ -67,6 +71,7 @@ def _serialize_user(user: User) -> UserResponse:
         id=user.id,
         email=user.email,
         role=user.role,
+        points_balance=user.points_balance,
         is_active=user.is_active,
         created_at=user.created_at,
         last_login_at=user.last_login_at,
@@ -115,6 +120,79 @@ def login(
     user = auth_service.authenticate_user(db, payload.email.lower(), payload.password)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    auth_service.touch_login(db, user)
+    access_token = auth_service.create_access_token(user)
+    refresh_token = auth_service.create_refresh_token(
+        db,
+        user,
+        user_agent=request.headers.get("user-agent"),
+        ip_address=request.client.host if request.client else None,
+    )
+    _set_auth_cookies(response, access_token, refresh_token)
+    return AuthResponse(user=_serialize_user(user))
+
+
+@router.post("/email-code/request", response_model=EmailCodeResponse)
+def request_email_code(
+    payload: EmailCodeRequest,
+    _: None = Depends(auth_rate_limit),
+    db: Session = Depends(get_db),
+):
+    user = auth_service.get_user_by_email(db, payload.email.lower())
+    if payload.purpose == "login" and user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email is not registered")
+    if payload.purpose == "register":
+        if auth_service.get_registration_policy()["registration_enabled"] is False:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Registration is currently disabled")
+        if user is not None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+
+    code = auth_service.create_email_login_code(db, payload.email)
+    auth_service.send_email_login_code(payload.email, code)
+    return EmailCodeResponse(
+        message="Verification code sent",
+        debug_code=code if settings.EMAIL_LOGIN_DEBUG_RETURN_CODE else None,
+    )
+
+
+@router.post("/email-code/login", response_model=AuthResponse)
+def login_with_email_code(
+    payload: EmailCodeLoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    _: None = Depends(auth_rate_limit),
+):
+    try:
+        user = auth_service.login_with_email_code(db, payload.email, payload.code)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+
+    auth_service.touch_login(db, user)
+    access_token = auth_service.create_access_token(user)
+    refresh_token = auth_service.create_refresh_token(
+        db,
+        user,
+        user_agent=request.headers.get("user-agent"),
+        ip_address=request.client.host if request.client else None,
+    )
+    _set_auth_cookies(response, access_token, refresh_token)
+    return AuthResponse(user=_serialize_user(user))
+
+
+@router.post("/email-code/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+def register_with_email_code(
+    payload: EmailCodeRegisterRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    _: None = Depends(auth_rate_limit),
+):
+    try:
+        user = auth_service.register_with_email_code(db, payload.email, payload.code, payload.invite_code)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     auth_service.touch_login(db, user)
     access_token = auth_service.create_access_token(user)

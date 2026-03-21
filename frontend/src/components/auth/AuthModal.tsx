@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, LogIn, UserPlus, X } from 'lucide-react';
+import { Loader2, LogIn, Mail, UserPlus, X } from 'lucide-react';
+
 import { api } from '../../api/api';
 import type { RegistrationPolicy, UserProfile } from '../../api/api';
+import { useI18n } from '../../i18n/I18nProvider';
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -10,22 +12,28 @@ interface AuthModalProps {
 }
 
 type Mode = 'login' | 'register';
+type LoginMethod = 'password' | 'email_code';
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess }) => {
+    const { t } = useI18n();
     const [mode, setMode] = useState<Mode>('login');
+    const [loginMethod, setLoginMethod] = useState<LoginMethod>('password');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [emailCode, setEmailCode] = useState('');
     const [inviteCode, setInviteCode] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSendingCode, setIsSendingCode] = useState(false);
+    const [codeMessage, setCodeMessage] = useState<string | null>(null);
+    const [debugCode, setDebugCode] = useState<string | null>(null);
     const [policy, setPolicy] = useState<RegistrationPolicy | null>(null);
 
     useEffect(() => {
-        if (!isOpen) {
-            return;
-        }
+        if (!isOpen) return;
 
-        void api.getRegistrationPolicy()
+        void api
+            .getRegistrationPolicy()
             .then(setPolicy)
             .catch(() => {
                 setPolicy({
@@ -41,9 +49,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     const reset = () => {
         setEmail('');
         setPassword('');
+        setEmailCode('');
         setInviteCode('');
         setError(null);
+        setCodeMessage(null);
+        setDebugCode(null);
         setIsSubmitting(false);
+        setIsSendingCode(false);
+        setLoginMethod('password');
+        setMode('login');
     };
 
     const handleClose = () => {
@@ -51,19 +65,59 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
         onClose();
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSendCode = async () => {
+        setError(null);
+        setCodeMessage(null);
+        setDebugCode(null);
+        setIsSendingCode(true);
+
+        try {
+            const response = await api.requestEmailCode({ email });
+            setCodeMessage(response.message || t('auth.codeSent'));
+            setDebugCode(response.debug_code ?? null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setIsSendingCode(false);
+        }
+    };
+
+    const handleSendRegisterCode = async () => {
+        setError(null);
+        setCodeMessage(null);
+        setDebugCode(null);
+        setIsSendingCode(true);
+
+        try {
+            const response = await api.requestEmailCode({ email, purpose: 'register' });
+            setCodeMessage(response.message || t('auth.codeSent'));
+            setDebugCode(response.debug_code ?? null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setIsSendingCode(false);
+        }
+    };
+
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
         setError(null);
         setIsSubmitting(true);
 
         try {
             if (mode === 'register' && policy?.registration_enabled === false) {
-                throw new Error('Registration is currently disabled');
+                throw new Error(t('auth.registrationClosed'));
             }
 
-            const user = mode === 'login'
-                ? await api.login({ email, password })
-                : await api.register({ email, password, invite_code: inviteCode || undefined });
+            let user: UserProfile;
+            if (mode === 'register') {
+                user = await api.registerWithEmailCode({ email, code: emailCode, invite_code: inviteCode || undefined });
+            } else if (loginMethod === 'password') {
+                user = await api.login({ email, password });
+            } else {
+                user = await api.loginWithEmailCode({ email, code: emailCode });
+            }
+
             onAuthSuccess(user);
             handleClose();
         } catch (err) {
@@ -73,29 +127,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
     };
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 backdrop-blur-sm p-4">
-            <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-white shadow-2xl overflow-hidden">
-                <div className="px-6 pt-6 pb-4 flex items-start justify-between">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md overflow-hidden rounded-[28px] border border-white/10 bg-white shadow-2xl">
+                <div className="flex items-start justify-between px-6 pb-4 pt-6">
                     <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.24em] text-cta/80">
-                            Account
-                        </p>
+                        <p className="text-xs font-bold uppercase tracking-[0.24em] text-cta/80">{t('auth.account')}</p>
                         <h2 className="mt-2 text-2xl font-heading font-bold text-text-light">
-                            {mode === 'login' ? 'Sign in' : 'Create test account'}
+                            {mode === 'login' ? t('auth.loginTitle') : t('auth.registerTitle')}
                         </h2>
                         <p className="mt-2 text-sm text-text-light/60">
                             {mode === 'login'
-                                ? 'After signing in, chat history will be stored in the cloud first.'
+                                ? t('auth.loginDesc')
                                 : policy?.registration_enabled === false
-                                    ? 'Registration is currently closed. Existing test accounts can still sign in.'
-                                    : policy?.invite_required
-                                        ? 'Registration is enabled, but an invite code is required for new test accounts.'
-                                        : 'For small-scale testing, you can register directly. Invite code is optional for now.'}
+                                  ? t('auth.registrationClosed')
+                                  : policy?.invite_required
+                                    ? t('auth.inviteRequired')
+                                    : t('auth.registerDesc')}
                         </p>
                     </div>
                     <button
                         onClick={handleClose}
-                        className="p-2 rounded-full text-text-light/40 hover:text-text-light hover:bg-secondary/10 transition-colors"
+                        className="rounded-full p-2 text-text-light/40 transition-colors hover:bg-secondary/10 hover:text-text-light"
                     >
                         <X size={18} />
                     </button>
@@ -105,30 +157,59 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                     <div className="grid grid-cols-2 gap-2 rounded-2xl bg-secondary/5 p-1">
                         <button
                             type="button"
-                            onClick={() => { setMode('login'); setError(null); }}
+                            onClick={() => {
+                                setMode('login');
+                                setError(null);
+                            }}
                             className={`rounded-2xl px-4 py-2.5 text-sm font-bold transition-all ${
                                 mode === 'login' ? 'bg-white text-cta shadow-sm' : 'text-text-light/55'
                             }`}
                         >
-                            Sign in
+                            {t('auth.loginTab')}
                         </button>
                         <button
                             type="button"
-                            onClick={() => { setMode('register'); setError(null); }}
+                            onClick={() => {
+                                setMode('register');
+                                setError(null);
+                            }}
                             className={`rounded-2xl px-4 py-2.5 text-sm font-bold transition-all ${
                                 mode === 'register' ? 'bg-white text-cta shadow-sm' : 'text-text-light/55'
                             }`}
                             disabled={policy?.registration_enabled === false}
                         >
-                            Register
+                            {t('auth.registerTab')}
                         </button>
                     </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="px-6 py-6 space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-4 px-6 py-6">
+                    {mode === 'login' && (
+                        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-secondary/5 p-1">
+                            <button
+                                type="button"
+                                onClick={() => setLoginMethod('password')}
+                                className={`rounded-2xl px-4 py-2 text-xs font-bold transition-all ${
+                                    loginMethod === 'password' ? 'bg-white text-cta shadow-sm' : 'text-text-light/55'
+                                }`}
+                            >
+                                {t('auth.passwordMode')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setLoginMethod('email_code')}
+                                className={`rounded-2xl px-4 py-2 text-xs font-bold transition-all ${
+                                    loginMethod === 'email_code' ? 'bg-white text-cta shadow-sm' : 'text-text-light/55'
+                                }`}
+                            >
+                                {t('auth.emailCodeMode')}
+                            </button>
+                        </div>
+                    )}
+
                     <label className="block">
                         <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-text-light/45">
-                            Email
+                            {t('auth.email')}
                         </span>
                         <input
                             type="email"
@@ -136,29 +217,72 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                             onChange={(e) => setEmail(e.target.value)}
                             required
                             className="w-full rounded-2xl border border-secondary/15 bg-secondary/5 px-4 py-3 text-sm outline-none transition focus:border-cta/40 focus:ring-4 focus:ring-cta/10"
-                            placeholder="you@example.com"
+                            placeholder={t('auth.emailPlaceholder')}
                         />
                     </label>
 
-                    <label className="block">
-                        <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-text-light/45">
-                            Password
-                        </span>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            minLength={8}
-                            className="w-full rounded-2xl border border-secondary/15 bg-secondary/5 px-4 py-3 text-sm outline-none transition focus:border-cta/40 focus:ring-4 focus:ring-cta/10"
-                            placeholder="At least 8 characters"
-                        />
-                    </label>
+                    {mode === 'login' && loginMethod === 'password' && (
+                        <label className="block">
+                            <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-text-light/45">
+                                {t('auth.password')}
+                            </span>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                minLength={8}
+                                className="w-full rounded-2xl border border-secondary/15 bg-secondary/5 px-4 py-3 text-sm outline-none transition focus:border-cta/40 focus:ring-4 focus:ring-cta/10"
+                                placeholder={t('auth.passwordPlaceholder')}
+                            />
+                        </label>
+                    )}
+
+                    {(mode === 'register' || (mode === 'login' && loginMethod === 'email_code')) && (
+                        <>
+                            <div className="flex gap-2">
+                                <label className="block flex-1">
+                                    <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-text-light/45">
+                                        {t('auth.code')}
+                                    </span>
+                                    <input
+                                        type="text"
+                                        value={emailCode}
+                                        onChange={(e) => setEmailCode(e.target.value)}
+                                        required
+                                        className="w-full rounded-2xl border border-secondary/15 bg-secondary/5 px-4 py-3 text-sm outline-none transition focus:border-cta/40 focus:ring-4 focus:ring-cta/10"
+                                        placeholder={t('auth.codePlaceholder')}
+                                    />
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        void (mode === 'register' ? handleSendRegisterCode() : handleSendCode())
+                                    }
+                                    disabled={isSendingCode || !email}
+                                    className="mt-7 flex items-center gap-2 rounded-2xl border border-cta/20 bg-cta/10 px-4 py-3 text-sm font-bold text-cta transition hover:bg-cta/15 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {isSendingCode ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
+                                    {codeMessage ? t('auth.resendCode') : t('auth.sendCode')}
+                                </button>
+                            </div>
+                            {codeMessage && (
+                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                                    <p>{t('auth.codeSent')}</p>
+                                    {debugCode && (
+                                        <p className="mt-2 font-mono text-xs">
+                                            {t('auth.debugCode')}: {debugCode}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </>
+                    )}
 
                     {mode === 'register' && policy?.registration_enabled !== false && (
                         <label className="block">
                             <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-text-light/45">
-                                Invite Code {policy?.invite_required ? '*' : ''}
+                                {t('auth.inviteCode')} {policy?.invite_required ? '*' : ''}
                             </span>
                             <input
                                 type="text"
@@ -166,7 +290,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                                 onChange={(e) => setInviteCode(e.target.value)}
                                 required={policy?.invite_required}
                                 className="w-full rounded-2xl border border-secondary/15 bg-secondary/5 px-4 py-3 text-sm outline-none transition focus:border-cta/40 focus:ring-4 focus:ring-cta/10"
-                                placeholder={policy?.invite_required ? 'Required' : 'Optional'}
+                                placeholder={policy?.invite_required ? t('auth.inviteRequiredPlaceholder') : t('auth.inviteOptionalPlaceholder')}
                             />
                         </label>
                     )}
@@ -180,16 +304,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                     <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full flex items-center justify-center gap-2 rounded-2xl bg-cta px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-cta/20 transition hover:bg-cta-hover disabled:cursor-not-allowed disabled:opacity-70"
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-cta px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-cta/20 transition hover:bg-cta disabled:cursor-not-allowed disabled:opacity-70"
                     >
                         {isSubmitting ? (
                             <Loader2 size={18} className="animate-spin" />
-                        ) : mode === 'login' ? (
-                            <LogIn size={18} />
-                        ) : (
+                        ) : mode === 'register' ? (
                             <UserPlus size={18} />
+                        ) : loginMethod === 'email_code' ? (
+                            <Mail size={18} />
+                        ) : (
+                            <LogIn size={18} />
                         )}
-                        {mode === 'login' ? 'Sign in and sync chats' : 'Register and start using'}
+                        {mode === 'register'
+                            ? t('auth.codeRegisterSubmit')
+                            : loginMethod === 'email_code'
+                              ? t('auth.codeLoginSubmit')
+                              : t('auth.loginSubmit')}
                     </button>
                 </form>
             </div>

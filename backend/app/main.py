@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.db import models  # noqa: F401
 from app.db.base import Base
+from app.db.migration import run_startup_migrations
 from app.db.session import engine
 from app.routers import auth, chat, diagnosis, presets
 
@@ -18,6 +19,8 @@ app = FastAPI(
 
 if settings.AUTO_CREATE_TABLES:
     Base.metadata.create_all(bind=engine)
+
+run_startup_migrations(engine)
 
 app.add_middleware(
     CORSMiddleware,

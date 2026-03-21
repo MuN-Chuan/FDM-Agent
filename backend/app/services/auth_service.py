@@ -7,11 +7,11 @@ from typing import Any
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import RefreshToken, User
+from app.db.models import EmailLoginCode, RefreshToken, User
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -22,10 +22,9 @@ class AuthService:
     def get_registration_policy(self) -> dict[str, bool | str]:
         mode = settings.REGISTRATION_MODE.strip().lower()
         registration_enabled = mode != "disabled"
-        invite_required = mode == "invite_only"
         return {
             "mode": mode,
-            "invite_required": invite_required,
+            "invite_required": False,
             "registration_enabled": registration_enabled,
         }
 
@@ -35,9 +34,7 @@ class AuthService:
             raise ValueError("Registration is currently disabled")
 
         normalized_code = invite_code.strip() if invite_code else None
-        if policy["invite_required"]:
-            if not normalized_code:
-                raise ValueError("Invite code is required")
+        if normalized_code:
             valid_codes = {code.strip() for code in settings.INVITE_CODES if code.strip()}
             if valid_codes and normalized_code not in valid_codes:
                 raise ValueError("Invite code is invalid")
@@ -136,6 +133,7 @@ class AuthService:
             email=normalized_email,
             password_hash=self.hash_password(password),
             invite_code_used=normalized_code,
+            points_balance=settings.DEFAULT_USER_POINTS,
         )
         db.add(user)
         db.commit()
@@ -156,6 +154,82 @@ class AuthService:
 
     def hash_refresh_token(self, refresh_token: str) -> str:
         return hashlib.sha256(refresh_token.encode("utf-8")).hexdigest()
+
+    def hash_email_code(self, code: str) -> str:
+        return hashlib.sha256(code.encode("utf-8")).hexdigest()
+
+    def create_email_login_code(self, db: Session, email: str) -> str:
+        normalized_email = email.lower()
+        code = f"{secrets.randbelow(900000) + 100000}"
+
+        db.execute(delete(EmailLoginCode).where(EmailLoginCode.email == normalized_email))
+        record = EmailLoginCode(
+            email=normalized_email,
+            user_id=self.get_user_by_email(db, normalized_email).id if self.get_user_by_email(db, normalized_email) else None,
+            code_hash=self.hash_email_code(code),
+            expires_at=datetime.now(UTC) + timedelta(minutes=settings.EMAIL_LOGIN_CODE_EXPIRE_MINUTES),
+        )
+        db.add(record)
+        db.commit()
+        return code
+
+    def login_with_email_code(self, db: Session, email: str, code: str) -> User:
+        normalized_email = email.lower()
+        record = self.get_valid_email_code_record(db, normalized_email, code)
+
+        user = self.get_user_by_email(db, normalized_email)
+        if user is None:
+            raise ValueError("Email is not registered")
+
+        record.consumed_at = datetime.now(UTC)
+        record.user_id = user.id
+        db.add(record)
+        db.commit()
+        db.refresh(user)
+        return user
+
+    def register_with_email_code(self, db: Session, email: str, code: str, invite_code: str | None = None) -> User:
+        normalized_email = email.lower()
+        if self.get_user_by_email(db, normalized_email):
+            raise ValueError("Email already registered")
+
+        normalized_code = self.validate_registration(invite_code)
+        record = self.get_valid_email_code_record(db, normalized_email, code)
+
+        user = User(
+            email=normalized_email,
+            password_hash=self.hash_password(secrets.token_urlsafe(32)),
+            invite_code_used=normalized_code,
+            points_balance=settings.DEFAULT_USER_POINTS,
+        )
+        db.add(user)
+        db.flush()
+
+        record.consumed_at = datetime.now(UTC)
+        record.user_id = user.id
+        db.add(record)
+        db.commit()
+        db.refresh(user)
+        return user
+
+    def get_valid_email_code_record(self, db: Session, email: str, code: str) -> EmailLoginCode:
+        record = db.scalar(
+            select(EmailLoginCode)
+            .where(EmailLoginCode.email == email.lower())
+            .order_by(EmailLoginCode.created_at.desc())
+        )
+        if record is None:
+            raise ValueError("Verification code not found")
+        if record.consumed_at is not None:
+            raise ValueError("Verification code already used")
+        if record.expires_at < datetime.now(UTC):
+            raise ValueError("Verification code expired")
+        if record.code_hash != self.hash_email_code(code):
+            raise ValueError("Verification code is invalid")
+        return record
+
+    def send_email_login_code(self, email: str, code: str) -> None:
+        print(f"[email-login] Send code {code} to {email} from {settings.EMAIL_LOGIN_SENDER}")
 
     def parse_user_from_access_token(self, db: Session, token: str) -> User | None:
         try:

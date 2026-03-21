@@ -16,6 +16,7 @@ import {
 import type { AppPage } from '../../App';
 import { chatStorage } from '../../api/chatStorage';
 import type { ChatSessionMetadata } from '../../api/chatStorage';
+import { useI18n } from '../../i18n/I18nProvider';
 
 interface SidebarProps {
     currentPage: AppPage;
@@ -24,26 +25,26 @@ interface SidebarProps {
     onSessionChange: (id: string | null) => void;
 }
 
-const navItems: { icon: React.ElementType; label: string; id: AppPage | string; page?: AppPage }[] = [
-    { icon: LayoutDashboard, label: '首页 / 工作台', id: 'dashboard' },
-    { icon: Zap, label: 'AI 诊断', id: 'diagnosis', page: 'diagnosis' },
-    { icon: MessageCircle, label: 'AI 问答', id: 'chat', page: 'chat' },
-    { icon: History, label: '历史记录', id: 'history' },
-    { icon: FileText, label: '预设管理', id: 'presets' },
-    { icon: BarChart3, label: '报告中心', id: 'reports' },
-    { icon: CreditCard, label: '订阅中心', id: 'subscription' },
-];
-
-const subItems = [
-    { label: '流量计算', id: 'flow' },
-    { label: '模型减面', id: 'simplify' },
-    { label: '擦料线生成', id: 'purge' },
-    { label: 'G-code 清理', id: 'clean' },
-];
-
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, currentSessionId, onSessionChange }) => {
+    const { t } = useI18n();
     const [activeTab, setActiveTab] = React.useState<'tools' | 'history'>('tools');
     const [history, setHistory] = React.useState<ChatSessionMetadata[]>([]);
+
+    const navItems: { icon: React.ElementType; label: string; id: AppPage | string; page?: AppPage }[] = [
+        { icon: LayoutDashboard, label: t('sidebar.dashboard'), id: 'dashboard' },
+        { icon: MessageCircle, label: t('sidebar.chat'), id: 'chat', page: 'chat' },
+        { icon: History, label: t('sidebar.historyLabel'), id: 'history' },
+        { icon: FileText, label: t('sidebar.presets'), id: 'presets' },
+        { icon: BarChart3, label: t('sidebar.reports'), id: 'reports' },
+        { icon: CreditCard, label: t('sidebar.subscription'), id: 'subscription' },
+    ];
+
+    const subItems = [
+        { label: t('sidebar.future.flow'), id: 'flow' },
+        { label: t('sidebar.future.simplify'), id: 'simplify' },
+        { label: t('sidebar.future.purge'), id: 'purge' },
+        { label: t('sidebar.future.clean'), id: 'clean' },
+    ];
 
     React.useEffect(() => {
         let cancelled = false;
@@ -91,7 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                         }`}
                     >
                         <Briefcase size={14} />
-                        工具
+                        {t('sidebar.tools')}
                     </button>
                     <button
                         onClick={() => setActiveTab('history')}
@@ -102,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                         }`}
                     >
                         <History size={14} />
-                        历史
+                        {t('sidebar.history')}
                     </button>
                 </div>
             </div>
@@ -136,7 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                         })}
 
                         <div className="px-3 pb-2 pt-6">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-dark/40">未来工具</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-dark/40">{t('sidebar.futureTools')}</span>
                         </div>
 
                         {subItems.map((item) => (
@@ -156,11 +157,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                             className="flex w-full items-center gap-3 rounded-lg border border-cta/20 px-3 py-2 text-xs font-bold text-cta transition-all hover:bg-cta/5"
                         >
                             <Zap size={14} />
-                            新建对话
+                            {t('sidebar.newChat')}
                         </button>
 
                         <div className="px-3">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-dark/40">最近会话</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-text-dark/40">{t('sidebar.recentSessions')}</span>
                         </div>
 
                         <div className="space-y-1">
@@ -181,7 +182,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                                 ))
                             ) : (
                                 <div className="rounded-xl border border-dashed border-secondary/10 px-3 py-8 text-center">
-                                    <p className="text-[11px] text-text-dark/30">暂无历史会话</p>
+                                    <p className="text-[11px] text-text-dark/30">{t('sidebar.noSessions')}</p>
                                 </div>
                             )}
                         </div>
@@ -192,11 +193,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
             <div className="space-y-1 border-t border-secondary/20 p-4">
                 <button className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-text-dark/60 transition-colors hover:text-text-dark">
                     <HelpCircle size={20} />
-                    <span className="text-sm font-medium">帮助中心</span>
+                    <span className="text-sm font-medium">{t('sidebar.help')}</span>
                 </button>
                 <button className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-text-dark/60 transition-colors hover:text-text-dark">
                     <Settings size={20} />
-                    <span className="text-sm font-medium">设置中心</span>
+                    <span className="text-sm font-medium">{t('sidebar.settings')}</span>
                 </button>
             </div>
         </aside>

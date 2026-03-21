@@ -43,6 +43,7 @@ export interface UserProfile {
     id: string;
     email: string;
     role: string;
+    points_balance: number;
     is_active: boolean;
     created_at: string;
     last_login_at?: string | null;
@@ -63,8 +64,29 @@ export interface LoginPayload {
     password: string;
 }
 
+export interface EmailCodeRequestPayload {
+    email: string;
+    purpose?: 'login' | 'register';
+}
+
+export interface EmailCodeLoginPayload {
+    email: string;
+    code: string;
+}
+
+export interface EmailCodeRegisterPayload {
+    email: string;
+    code: string;
+    invite_code?: string;
+}
+
 export interface RegisterPayload extends LoginPayload {
     invite_code?: string;
+}
+
+export interface EmailCodeResponse {
+    message: string;
+    debug_code?: string | null;
 }
 
 export interface SessionMetadata {
@@ -240,6 +262,50 @@ export const api = {
         if (!response.ok) {
             const error = await response.json().catch(() => ({ detail: 'Register failed' }));
             throw new Error(error.detail || 'Register failed');
+        }
+        const data: AuthResponse = await response.json();
+        return data.user;
+    },
+
+    async requestEmailCode(payload: EmailCodeRequestPayload): Promise<EmailCodeResponse> {
+        const response = await fetch(`${BASE_URL}/api/auth/email-code/request`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: 'Failed to send verification code' }));
+            throw new Error(error.detail || 'Failed to send verification code');
+        }
+        return response.json();
+    },
+
+    async loginWithEmailCode(payload: EmailCodeLoginPayload): Promise<UserProfile> {
+        const response = await fetch(`${BASE_URL}/api/auth/email-code/login`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: 'Code login failed' }));
+            throw new Error(error.detail || 'Code login failed');
+        }
+        const data: AuthResponse = await response.json();
+        return data.user;
+    },
+
+    async registerWithEmailCode(payload: EmailCodeRegisterPayload): Promise<UserProfile> {
+        const response = await fetch(`${BASE_URL}/api/auth/email-code/register`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: 'Code register failed' }));
+            throw new Error(error.detail || 'Code register failed');
         }
         const data: AuthResponse = await response.json();
         return data.user;

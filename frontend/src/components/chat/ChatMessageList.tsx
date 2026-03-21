@@ -12,6 +12,7 @@ import {
 
 import type { Modification } from '../../api/api';
 import { ParameterDiffViewer } from '../../features/diagnosis/ParameterDiffViewer';
+import { useI18n } from '../../i18n/I18nProvider';
 import type { ChatUIMessage } from './types';
 
 interface ChatMessageListProps {
@@ -22,6 +23,52 @@ interface ChatMessageListProps {
     onRegenerateMessage: (messageId: string) => void | Promise<void>;
     onRequestModifications: (messageId: string) => void | Promise<void>;
     bottomRef: React.RefObject<HTMLDivElement | null>;
+}
+
+function shouldShowModificationShortcut(content: string) {
+    return /(\u53c2\u6570|\u4f18\u5316|\u5efa\u8bae|\u5207\u7247|parameter|optimi|suggest|slice)/i.test(content);
+}
+
+function renderAssistantContent(content: string) {
+    return content.split('\n\n').map((block, index) => {
+        const normalizedBlock = block.trim();
+
+        if (!normalizedBlock) {
+            return null;
+        }
+
+        if (normalizedBlock.startsWith('### ')) {
+            return (
+                <h3 key={index} className="mt-6 mb-3 font-heading text-[1.15rem] font-bold tracking-[0.01em] text-cta">
+                    {normalizedBlock.replace('### ', '')}
+                </h3>
+            );
+        }
+
+        if (normalizedBlock.startsWith('#### ')) {
+            return (
+                <h4 key={index} className="mt-5 mb-2 font-heading text-[1rem] font-semibold tracking-[0.01em] text-slate-700 dark:text-slate-200">
+                    {normalizedBlock.replace('#### ', '')}
+                </h4>
+            );
+        }
+
+        if (normalizedBlock.startsWith('- ') || normalizedBlock.startsWith('* ')) {
+            return (
+                <ul key={index} className="my-3 space-y-2 pl-6 text-[15px] leading-8 tracking-[0.01em] marker:text-cta">
+                    {normalizedBlock.split('\n').map((line, lineIndex) => (
+                        <li key={lineIndex}>{line.replace(/^[-*]\s/, '')}</li>
+                    ))}
+                </ul>
+            );
+        }
+
+        return (
+            <p key={index} className="my-3 text-[15px] leading-8 tracking-[0.01em] text-slate-700 dark:text-slate-200/90">
+                {normalizedBlock}
+            </p>
+        );
+    });
 }
 
 function AssistantMessage({
@@ -39,6 +86,7 @@ function AssistantMessage({
     onRegenerateMessage: (messageId: string) => void | Promise<void>;
     onRequestModifications: (messageId: string) => void | Promise<void>;
 }) {
+    const { t } = useI18n();
     const [thoughtOpen, setThoughtOpen] = useState(true);
     const [modificationsOpen, setModificationsOpen] = useState(true);
     const hasAutoCollapsedRef = useRef(false);
@@ -70,7 +118,7 @@ function AssistantMessage({
                         >
                             <div className="flex items-center gap-2 text-text-light/50 transition-colors group-hover:text-cta">
                                 <Brain size={14} className="text-cta" />
-                                <span className="text-[10px] font-bold uppercase tracking-widest">思考过程</span>
+                                <span className="text-[10px] font-bold uppercase tracking-widest">{t('chat.thought')}</span>
                             </div>
                             {thoughtOpen ? (
                                 <ChevronUp size={14} className="text-text-light/30" />
@@ -90,8 +138,8 @@ function AssistantMessage({
                 )}
 
                 {!!message.content && (
-                    <div className="max-w-none whitespace-pre-wrap text-sm leading-relaxed text-text-light/90 dark:text-text-dark/90">
-                        {message.content}
+                    <div className="max-w-none font-body text-[15px] leading-8 tracking-[0.01em] text-slate-700 dark:text-slate-200/90">
+                        {renderAssistantContent(message.content)}
                         {message.isStreaming && (
                             <span className="ml-1 inline-block h-4 w-1.5 animate-pulse align-middle bg-cta/40" />
                         )}
@@ -99,11 +147,11 @@ function AssistantMessage({
                         {!message.isStreaming && message.usage && (
                             <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-secondary/5 pt-2 font-mono text-[10px] text-text-light/30 dark:text-text-dark/30">
                                 <div className="flex items-center gap-1">
-                                    <span className="opacity-60">Tokens:</span>
+                                    <span className="opacity-60">{t('chat.tokens')}:</span>
                                     <span className="font-bold text-text-light/50 dark:text-text-dark/50">
                                         {message.usage.prompt_tokens}
                                     </span>
-                                    <span className="opacity-40">→</span>
+                                    <span className="opacity-40">-&gt;</span>
                                     <span className="font-bold text-text-light/50 dark:text-text-dark/50">
                                         {message.usage.completion_tokens}
                                     </span>
@@ -112,14 +160,14 @@ function AssistantMessage({
                                     <>
                                         <div className="h-1 w-1 rounded-full bg-secondary/10" />
                                         <div className="flex items-center gap-1">
-                                            <span className="text-emerald-500/50 opacity-60">Cached:</span>
+                                            <span className="text-emerald-500/50 opacity-60">{t('chat.cached')}:</span>
                                             <span className="font-bold text-emerald-500/60">{message.usage.cache_tokens}</span>
                                         </div>
                                     </>
                                 )}
                                 <div className="h-1 w-1 rounded-full bg-secondary/10" />
                                 <div className="flex items-center gap-1">
-                                    <span className="opacity-60">Total:</span>
+                                    <span className="opacity-60">{t('chat.total')}:</span>
                                     <span className="font-bold text-cta/60">{message.usage.total_tokens}</span>
                                 </div>
                             </div>
@@ -128,34 +176,39 @@ function AssistantMessage({
                 )}
 
                 {message.modifications && message.modifications.length > 0 && (
-                    <div className="animate-in mt-4 overflow-hidden rounded-xl border border-cta/30 bg-cta/5 shadow-sm fade-in slide-in-from-top-2">
-                        <button
-                            onClick={() => setModificationsOpen((value) => !value)}
-                            className="flex w-full items-center justify-between border-b border-cta/10 bg-cta/10 px-4 py-3 transition-colors hover:bg-cta/15"
-                        >
-                            <div className="flex items-center gap-2">
-                                <Wrench size={14} className="text-cta" />
-                                <span className="text-xs font-bold uppercase tracking-wider text-cta">参数修改建议</span>
-                            </div>
-                            {modificationsOpen ? (
-                                <ChevronUp size={14} className="text-text-light/30" />
-                            ) : (
-                                <ChevronDown size={14} className="text-text-light/30" />
+                    <div className="mt-4 space-y-3">
+                        <div className="overflow-hidden rounded-2xl border border-cta/25 bg-white shadow-[0_14px_30px_rgba(34,197,94,0.08)] dark:border-cta/25 dark:bg-[#132419]">
+                            <button
+                                onClick={() => setModificationsOpen((value) => !value)}
+                                className="flex w-full items-center justify-between border-b border-cta/15 bg-cta/12 px-4 py-3 transition-colors hover:bg-cta/16 dark:border-cta/20 dark:bg-cta/14 dark:hover:bg-cta/18"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Wrench size={14} className="text-cta" />
+                                    <span className="text-sm font-bold text-cta">{t('chat.modifications')}</span>
+                                </div>
+                                {modificationsOpen ? (
+                                    <ChevronUp size={14} className="text-cta/70" />
+                                ) : (
+                                    <ChevronDown size={14} className="text-cta/70" />
+                                )}
+                            </button>
+                            {modificationsOpen && (
+                                <div className="p-4">
+                                    <ParameterDiffViewer modifications={message.modifications} />
+                                </div>
                             )}
-                        </button>
-                        {modificationsOpen && (
-                            <div className="space-y-4 p-4">
-                                <ParameterDiffViewer modifications={message.modifications} />
-                                <button
-                                    onClick={() => void onDownloadPresets(message.modifications)}
-                                    disabled={!hasPresetBundle}
-                                    className="btn-cta w-full justify-center rounded-xl py-2.5 disabled:opacity-40"
-                                >
-                                    <Download size={14} />
-                                    下载修复后的预设包
-                                </button>
-                            </div>
-                        )}
+                        </div>
+
+                        <div className="flex justify-start">
+                            <button
+                                onClick={() => void onDownloadPresets(message.modifications)}
+                                disabled={!hasPresetBundle}
+                                className="inline-flex min-w-[220px] cursor-pointer items-center justify-center gap-2 rounded-2xl bg-cta px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-cta/20 transition-all hover:-translate-y-0.5 hover:bg-[#1fb457] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 dark:hover:bg-[#1fb457]"
+                            >
+                                <Download size={14} />
+                                {t('chat.downloadPreset')}
+                            </button>
+                        </div>
                     </div>
                 )}
 
@@ -164,16 +217,13 @@ function AssistantMessage({
                         {hasPresetBundle &&
                             message.id !== 'welcome' &&
                             !message.modifications &&
-                            (message.content.includes('参数') ||
-                                message.content.includes('优化') ||
-                                message.content.includes('建议') ||
-                                message.content.includes('切片')) && (
+                            shouldShowModificationShortcut(message.content) && (
                                 <button
                                     onClick={() => void onRequestModifications(message.id)}
                                     className="flex items-center gap-2 rounded-lg border border-cta/20 bg-cta/5 px-3.5 py-2 text-[11px] font-bold uppercase tracking-wider text-cta shadow-sm transition-all hover:bg-cta/10"
                                 >
                                     <Wrench size={13} />
-                                    帮我修改预设参数
+                                    {t('chat.requestMods')}
                                 </button>
                             )}
 
@@ -183,7 +233,7 @@ function AssistantMessage({
                                 className="group flex items-center gap-1.5 rounded-lg border border-secondary/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-text-light/30 transition-all hover:border-cta/20 hover:bg-cta/5 hover:text-cta"
                             >
                                 <RotateCcw size={13} className="text-text-light/30 group-hover:text-cta" />
-                                重新回答
+                                {t('chat.regenerate')}
                             </button>
                         )}
                     </div>
@@ -200,6 +250,7 @@ function UserMessage({
     message: ChatUIMessage;
     onEditMessage: (messageId: string, content: string) => void | Promise<void>;
 }) {
+    const { t } = useI18n();
     const [isEditing, setIsEditing] = useState(false);
     const [tempEditValue, setTempEditValue] = useState(message.content);
 
@@ -239,7 +290,7 @@ function UserMessage({
                     )}
 
                     {!isEditing ? (
-                        <div className="relative max-w-full rounded-2xl rounded-tr-sm bg-cta px-5 py-3 text-sm leading-relaxed whitespace-pre-wrap text-white shadow-md">
+                        <div className="relative max-w-full whitespace-pre-wrap rounded-2xl rounded-tr-sm bg-cta px-5 py-3 text-sm leading-relaxed text-white shadow-md">
                             {message.content}
                         </div>
                     ) : (
@@ -258,7 +309,7 @@ function UserMessage({
                                     }}
                                     className="px-3 py-1.5 text-xs font-bold text-text-light/40 transition-colors hover:text-text-light"
                                 >
-                                    取消
+                                    {t('chat.cancel')}
                                 </button>
                                 <button
                                     onClick={() => {
@@ -267,7 +318,7 @@ function UserMessage({
                                     }}
                                     className="rounded-lg bg-cta px-4 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-cta"
                                 >
-                                    发送并重试
+                                    {t('chat.retry')}
                                 </button>
                             </div>
                         </div>
@@ -280,7 +331,7 @@ function UserMessage({
                     <button
                         onClick={() => setIsEditing(true)}
                         className="rounded-lg p-1.5 text-text-light/30 transition-all hover:bg-cta/5 hover:text-cta"
-                        title="编辑消息"
+                        title={t('chat.edit')}
                     >
                         <PencilLine size={14} />
                     </button>
