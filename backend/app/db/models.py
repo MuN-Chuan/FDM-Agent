@@ -43,6 +43,10 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    chat_feedback_entries: Mapped[list["ChatFeedback"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 class RefreshToken(Base):
@@ -118,3 +122,23 @@ class EmailLoginCode(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User | None] = relationship(back_populates="email_login_codes")
+
+
+class ChatFeedback(Base):
+    __tablename__ = "chat_feedback"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    session_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    assistant_message_id: Mapped[str] = mapped_column(String(64), index=True)
+    user_message_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    rating: Mapped[str] = mapped_column(String(16))
+    user_message_content: Mapped[str] = mapped_column(Text)
+    assistant_message_content: Mapped[str] = mapped_column(Text)
+    assistant_thought: Mapped[str | None] = mapped_column(Text, nullable=True)
+    feedback_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    feedback_images: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    context_snapshot: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped[User | None] = relationship(back_populates="chat_feedback_entries")

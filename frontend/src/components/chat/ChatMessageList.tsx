@@ -4,13 +4,17 @@ import {
     ChevronDown,
     ChevronUp,
     Download,
+    ImagePlus,
     PencilLine,
     RotateCcw,
     Sparkles,
+    ThumbsDown,
+    ThumbsUp,
     Wrench,
+    X,
 } from 'lucide-react';
 
-import type { Modification } from '../../api/api';
+import type { FeedbackImageAsset, Modification } from '../../api/api';
 import { ParameterDiffViewer } from '../../features/diagnosis/ParameterDiffViewer';
 import { useI18n } from '../../i18n/I18nProvider';
 import type { ChatUIMessage } from './types';
@@ -22,6 +26,10 @@ interface ChatMessageListProps {
     onEditMessage: (messageId: string, content: string) => void | Promise<void>;
     onRegenerateMessage: (messageId: string) => void | Promise<void>;
     onRequestModifications: (messageId: string) => void | Promise<void>;
+    onSubmitFeedback: (
+        messageId: string,
+        payload: { rating: 'up' | 'down'; text?: string; images?: FeedbackImageAsset[] },
+    ) => void | Promise<void>;
     bottomRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -71,6 +79,22 @@ function renderAssistantContent(content: string) {
     });
 }
 
+function readImageAsBase64(file: File): Promise<FeedbackImageAsset> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const dataUrl = String(reader.result);
+            resolve({
+                name: file.name,
+                base64: dataUrl.split(',')[1] || '',
+                preview_url: dataUrl,
+            });
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+    });
+}
+
 function AssistantMessage({
     message,
     hasPresetBundle,
@@ -78,6 +102,7 @@ function AssistantMessage({
     onDownloadPresets,
     onRegenerateMessage,
     onRequestModifications,
+    onSubmitFeedback,
 }: {
     message: ChatUIMessage;
     hasPresetBundle: boolean;
@@ -85,11 +110,21 @@ function AssistantMessage({
     onDownloadPresets: (mods?: Modification[]) => void | Promise<void>;
     onRegenerateMessage: (messageId: string) => void | Promise<void>;
     onRequestModifications: (messageId: string) => void | Promise<void>;
+    onSubmitFeedback: (
+        messageId: string,
+        payload: { rating: 'up' | 'down'; text?: string; images?: FeedbackImageAsset[] },
+    ) => void | Promise<void>;
 }) {
     const { t } = useI18n();
     const [thoughtOpen, setThoughtOpen] = useState(true);
     const [modificationsOpen, setModificationsOpen] = useState(true);
+    const [feedbackText, setFeedbackText] = useState(message.feedback?.text ?? '');
+    const [feedbackImages, setFeedbackImages] = useState<FeedbackImageAsset[]>(message.feedback?.images ?? []);
+    const [feedbackFormOpen, setFeedbackFormOpen] = useState(message.feedback?.rating === 'down');
+    const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+    const [feedbackError, setFeedbackError] = useState('');
     const hasAutoCollapsedRef = useRef(false);
+    const feedbackFileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (message.content && !hasAutoCollapsedRef.current) {
@@ -97,6 +132,65 @@ function AssistantMessage({
             hasAutoCollapsedRef.current = true;
         }
     }, [message.content]);
+
+    useEffect(() => {
+        setFeedbackText(message.feedback?.text ?? '');
+        setFeedbackImages(message.feedback?.images ?? []);
+        setFeedbackFormOpen(message.feedback?.rating === 'down');
+    }, [message.feedback]);
+
+    const handlePositiveFeedback = async () => {
+        if (feedbackSubmitting || message.feedback?.rating === 'up') {
+            return;
+        }
+
+        try {
+            setFeedbackSubmitting(true);
+            setFeedbackError('');
+            await onSubmitFeedback(message.id, { rating: 'up' });
+        } catch (error) {
+            setFeedbackError(error instanceof Error ? error.message : t('chat.feedbackSubmitError'));
+        } finally {
+            setFeedbackSubmitting(false);
+        }
+    };
+
+    const handleNegativeFeedbackSubmit = async () => {
+        if (feedbackSubmitting) {
+            return;
+        }
+
+        try {
+            setFeedbackSubmitting(true);
+            setFeedbackError('');
+            await onSubmitFeedback(message.id, {
+                rating: 'down',
+                text: feedbackText,
+                images: feedbackImages,
+            });
+        } catch (error) {
+            setFeedbackError(error instanceof Error ? error.message : t('chat.feedbackSubmitError'));
+        } finally {
+            setFeedbackSubmitting(false);
+        }
+    };
+
+    const handleFeedbackImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(event.target.files || []);
+        if (files.length === 0) {
+            return;
+        }
+
+        try {
+            const nextImages = await Promise.all(files.map((file) => readImageAsBase64(file)));
+            setFeedbackImages((current) => [...current, ...nextImages]);
+            setFeedbackError('');
+        } catch {
+            setFeedbackError(t('chat.feedbackImageError'));
+        } finally {
+            event.target.value = '';
+        }
+    };
 
     return (
         <div className="group/msg flex items-start gap-4">
@@ -214,6 +308,39 @@ function AssistantMessage({
 
                 {!message.isStreaming && (
                     <div className="flex flex-wrap gap-2 pt-2">
+                        {message.id !== 'welcome' && (
+                            <>
+                                <button
+                                    onClick={() => void handlePositiveFeedback()}
+                                    disabled={feedbackSubmitting || !!message.feedback}
+                                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-bold uppercase tracking-wider transition-all ${
+                                        message.feedback?.rating === 'up'
+                                            ? 'border-cta/30 bg-cta/10 text-cta'
+                                            : 'border-secondary/10 text-text-light/30 hover:border-cta/20 hover:bg-cta/5 hover:text-cta'
+                                    } disabled:cursor-not-allowed disabled:opacity-70`}
+                                >
+                                    <ThumbsUp size={13} />
+                                    {t('chat.feedbackUp')}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (!message.feedback) {
+                                            setFeedbackFormOpen((value) => !value);
+                                        }
+                                    }}
+                                    disabled={feedbackSubmitting || message.feedback?.rating === 'up'}
+                                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[11px] font-bold uppercase tracking-wider transition-all ${
+                                        message.feedback?.rating === 'down' || feedbackFormOpen
+                                            ? 'border-rose-300 bg-rose-50 text-rose-600'
+                                            : 'border-secondary/10 text-text-light/30 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600'
+                                    } disabled:cursor-not-allowed disabled:opacity-70`}
+                                >
+                                    <ThumbsDown size={13} />
+                                    {t('chat.feedbackDown')}
+                                </button>
+                            </>
+                        )}
+
                         {hasPresetBundle &&
                             message.id !== 'welcome' &&
                             !message.modifications &&
@@ -236,6 +363,104 @@ function AssistantMessage({
                                 {t('chat.regenerate')}
                             </button>
                         )}
+                    </div>
+                )}
+
+                {feedbackFormOpen && message.id !== 'welcome' && message.feedback?.rating !== 'up' && (
+                    <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 shadow-sm">
+                        <div className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <div className="text-sm font-bold text-rose-700">{t('chat.feedbackDownTitle')}</div>
+                                    <div className="text-xs text-rose-500">{t('chat.feedbackDownHint')}</div>
+                                </div>
+                                {!message.feedback && (
+                                    <button
+                                        onClick={() => {
+                                            setFeedbackFormOpen(false);
+                                            setFeedbackText('');
+                                            setFeedbackImages([]);
+                                            setFeedbackError('');
+                                        }}
+                                        className="rounded-full p-1 text-rose-400 transition-colors hover:bg-white/70 hover:text-rose-600"
+                                        title={t('chat.cancel')}
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+
+                            <textarea
+                                value={feedbackText}
+                                onChange={(event) => setFeedbackText(event.target.value)}
+                                placeholder={t('chat.feedbackPlaceholder')}
+                                disabled={feedbackSubmitting || !!message.feedback}
+                                className="min-h-[96px] w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm text-text-light outline-none transition-all placeholder:text-text-light/35 focus:border-rose-300 focus:ring-4 focus:ring-rose-100 disabled:opacity-70"
+                            />
+
+                            <input
+                                ref={feedbackFileInputRef}
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                className="hidden"
+                                onChange={(event) => void handleFeedbackImageUpload(event)}
+                            />
+
+                            <div className="flex flex-wrap gap-2">
+                                {feedbackImages.map((image, index) => (
+                                    <div key={`${image.name}-${index}`} className="group/image relative">
+                                        <img
+                                            src={image.preview_url}
+                                            alt={image.name}
+                                            className="h-16 w-16 rounded-xl border border-rose-200 object-cover shadow-sm"
+                                        />
+                                        {!message.feedback && (
+                                            <button
+                                                onClick={() =>
+                                                    setFeedbackImages((current) =>
+                                                        current.filter((_, imageIndex) => imageIndex !== index),
+                                                    )
+                                                }
+                                                className="absolute -right-1.5 -top-1.5 rounded-full bg-white p-1 text-rose-500 shadow-sm transition-colors hover:bg-rose-100"
+                                                title={t('chat.removeAttachment')}
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                {!message.feedback && (
+                                    <>
+                                        <button
+                                            onClick={() => feedbackFileInputRef.current?.click()}
+                                            disabled={feedbackSubmitting}
+                                            className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-600 transition-all hover:bg-rose-100 disabled:opacity-70"
+                                        >
+                                            <ImagePlus size={14} />
+                                            {t('chat.feedbackUploadImage')}
+                                        </button>
+                                        <button
+                                            onClick={() => void handleNegativeFeedbackSubmit()}
+                                            disabled={feedbackSubmitting}
+                                            className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-rose-700 disabled:opacity-70"
+                                        >
+                                            <ThumbsDown size={14} />
+                                            {t('chat.feedbackSubmit')}
+                                        </button>
+                                    </>
+                                )}
+
+                                {message.feedback?.rating === 'down' && (
+                                    <span className="text-xs font-bold text-rose-600">{t('chat.feedbackSubmitted')}</span>
+                                )}
+                            </div>
+
+                            {feedbackError && <div className="text-xs text-rose-600">{feedbackError}</div>}
+                        </div>
                     </div>
                 )}
             </div>
@@ -348,6 +573,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     onEditMessage,
     onRegenerateMessage,
     onRequestModifications,
+    onSubmitFeedback,
     bottomRef,
 }) => (
     <div className="custom-scrollbar relative flex-1 overflow-y-auto pb-[40vh] pt-8">
@@ -364,6 +590,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
                         onDownloadPresets={onDownloadPresets}
                         onRegenerateMessage={onRegenerateMessage}
                         onRequestModifications={onRequestModifications}
+                        onSubmitFeedback={onSubmitFeedback}
                     />
                 ),
             )}

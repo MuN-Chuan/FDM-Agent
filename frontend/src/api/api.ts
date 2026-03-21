@@ -95,6 +95,40 @@ export interface SessionMetadata {
     timestamp: number;
 }
 
+export interface FeedbackImageAsset {
+    name: string;
+    base64: string;
+    preview_url?: string;
+}
+
+export interface FeedbackAttachmentAsset {
+    name: string;
+    size: number;
+    content: string;
+}
+
+export interface FeedbackBinaryAsset {
+    name: string;
+    base64: string;
+    mime_type?: string;
+}
+
+export interface FeedbackPresetSnapshot {
+    file_name: string | null;
+    bundle_format?: string | null;
+    bundle_id?: string | null;
+    printer?: Record<string, unknown> | null;
+    process?: Record<string, unknown> | null;
+    filaments?: Record<string, unknown>[];
+}
+
+export interface MessageFeedbackRecord {
+    rating: 'up' | 'down';
+    text?: string;
+    images?: FeedbackImageAsset[];
+    submittedAt: number;
+}
+
 export interface StoredMessage {
     id: string;
     role: string;
@@ -104,8 +138,14 @@ export interface StoredMessage {
     isStreaming?: boolean;
     imagePreviewUrl?: string;
     attachedFiles?: { name: string; size: number }[];
+    attachedFilesDetailed?: FeedbackAttachmentAsset[];
     presetName?: string;
+    presetSnapshot?: FeedbackPresetSnapshot;
+    presetUploadAsset?: FeedbackBinaryAsset;
+    imageAsset?: FeedbackImageAsset;
     usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number; cache_tokens?: number };
+    modelName?: string;
+    feedback?: MessageFeedbackRecord;
 }
 
 export interface SessionPayload extends SessionMetadata {
@@ -130,6 +170,16 @@ type StreamChunk = {
     raw?: string;
     usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number; cache_tokens?: number };
 };
+
+export interface ChatFeedbackPayload {
+    session_id?: string | null;
+    assistant_message_id: string;
+    user_message_id?: string | null;
+    rating: 'up' | 'down';
+    feedback_text?: string;
+    feedback_images?: FeedbackImageAsset[];
+    context_snapshot: Record<string, unknown>;
+}
 
 async function parseStream(response: Response, onUpdate: (chunk: StreamChunk) => void): Promise<void> {
     const reader = response.body?.getReader();
@@ -215,6 +265,20 @@ export const api = {
         }
 
         await parseStream(response, onUpdate);
+    },
+
+    async submitChatFeedback(payload: ChatFeedbackPayload): Promise<void> {
+        const response = await fetch(`${BASE_URL}/api/chat/feedback`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: 'Failed to submit feedback' }));
+            throw new Error(error.detail || 'Failed to submit feedback');
+        }
     },
 
     async getParameterMap(slicer: string): Promise<Record<string, string[]>> {

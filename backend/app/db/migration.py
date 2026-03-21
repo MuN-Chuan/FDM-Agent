@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, MetaData, String, Table, func, inspect, text
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, MetaData, String, Table, Text, func, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.schema import CreateIndex
 
@@ -27,6 +27,29 @@ def build_email_login_codes_table(metadata: MetaData) -> Table:
     )
 
 
+def build_chat_feedback_table(metadata: MetaData) -> Table:
+    if "users" not in metadata.tables:
+        Table("users", metadata, Column("id", String(36), primary_key=True))
+
+    return Table(
+        "chat_feedback",
+        metadata,
+        Column("id", String(36), primary_key=True),
+        Column("user_id", String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True),
+        Column("session_id", String(64), nullable=True, index=True),
+        Column("assistant_message_id", String(64), nullable=False, index=True),
+        Column("user_message_id", String(64), nullable=True, index=True),
+        Column("rating", String(16), nullable=False),
+        Column("user_message_content", Text, nullable=False),
+        Column("assistant_message_content", Text, nullable=False),
+        Column("assistant_thought", Text, nullable=True),
+        Column("feedback_text", Text, nullable=True),
+        Column("feedback_images", JSON, nullable=True),
+        Column("context_snapshot", JSON, nullable=False),
+        Column("created_at", DateTime(timezone=True), server_default=func.now(), nullable=False),
+    )
+
+
 def run_startup_migrations(engine: Engine) -> None:
     inspector = inspect(engine)
 
@@ -41,4 +64,12 @@ def run_startup_migrations(engine: Engine) -> None:
             metadata.create_all(bind=connection, tables=[email_login_codes], checkfirst=True)
 
             for index in email_login_codes.indexes:
+                connection.execute(CreateIndex(index, if_not_exists=True))
+
+        if "chat_feedback" not in inspector.get_table_names():
+            metadata = MetaData()
+            chat_feedback = build_chat_feedback_table(metadata)
+            metadata.create_all(bind=connection, tables=[chat_feedback], checkfirst=True)
+
+            for index in chat_feedback.indexes:
                 connection.execute(CreateIndex(index, if_not_exists=True))

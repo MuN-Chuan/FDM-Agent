@@ -1,4 +1,12 @@
-import type { Modification, SessionMetadata } from '../../api/api';
+import type {
+    FeedbackBinaryAsset,
+    FeedbackAttachmentAsset,
+    FeedbackImageAsset,
+    FeedbackPresetSnapshot,
+    MessageFeedbackRecord,
+    Modification,
+    SessionMetadata,
+} from '../../api/api';
 import type { ParsedBundle, PresetSelection } from '../diagnosis/presetTypes';
 
 export interface ChatUIMessage {
@@ -7,17 +15,23 @@ export interface ChatUIMessage {
     content: string;
     imageUrl?: string;
     attachedFiles?: { name: string; size: number }[];
+    attachedFilesDetailed?: FeedbackAttachmentAsset[];
     thought?: string;
     modifications?: Modification[];
     isStreaming?: boolean;
     imagePreviewUrl?: string;
+    imageAsset?: FeedbackImageAsset;
     presetName?: string;
+    presetSnapshot?: FeedbackPresetSnapshot;
+    presetUploadAsset?: FeedbackBinaryAsset;
     usage?: {
         prompt_tokens: number;
         completion_tokens: number;
         total_tokens: number;
         cache_tokens?: number;
     };
+    modelName?: string;
+    feedback?: MessageFeedbackRecord;
 }
 
 export type ChatSessionMetadata = SessionMetadata;

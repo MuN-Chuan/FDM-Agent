@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 from app.models.diagnosis import ApiSettings, Modification
 
 
@@ -19,3 +19,19 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reasoning_markdown: str = Field(default="", description="AI response text")
     modifications: List[Modification] = Field(default_factory=list)
+
+
+class FeedbackImage(BaseModel):
+    name: str
+    base64: str
+    preview_url: Optional[str] = None
+
+
+class ChatFeedbackRequest(BaseModel):
+    session_id: Optional[str] = None
+    assistant_message_id: str
+    user_message_id: Optional[str] = None
+    rating: Literal["up", "down"]
+    feedback_text: Optional[str] = None
+    feedback_images: List[FeedbackImage] = Field(default_factory=list)
+    context_snapshot: Dict[str, Any] = Field(default_factory=dict)

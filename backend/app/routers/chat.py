@@ -4,10 +4,10 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import ChatMessageRecord, ChatSession, User
+from app.db.models import ChatFeedback, ChatMessageRecord, ChatSession, User
 from app.db.session import get_db
-from app.dependencies.auth import get_current_user
-from app.models.chat import ChatRequest
+from app.dependencies.auth import get_current_user, get_optional_current_user
+from app.models.chat import ChatFeedbackRequest, ChatRequest
 from app.schemas.auth import MessageResponse
 from app.schemas.session import SessionMetadata, SessionPayload, StoredMessage
 from app.services.chat_service import chat_service
@@ -49,6 +49,35 @@ async def create_chat_stream(
         ),
         media_type="text/event-stream"
     )
+
+
+@router.post("/feedback", response_model=MessageResponse)
+def submit_chat_feedback(
+    payload: ChatFeedbackRequest,
+    request: Request,
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+    _: None = Depends(chat_rate_limit),
+):
+    user_message = payload.context_snapshot.get("user_message", {}) if isinstance(payload.context_snapshot, dict) else {}
+    assistant_message = payload.context_snapshot.get("assistant_message", {}) if isinstance(payload.context_snapshot, dict) else {}
+
+    feedback = ChatFeedback(
+        user_id=current_user.id if current_user else None,
+        session_id=payload.session_id,
+        assistant_message_id=payload.assistant_message_id,
+        user_message_id=payload.user_message_id,
+        rating=payload.rating,
+        user_message_content=str(user_message.get("content", "")),
+        assistant_message_content=str(assistant_message.get("content", "")),
+        assistant_thought=assistant_message.get("thought"),
+        feedback_text=payload.feedback_text,
+        feedback_images=[image.model_dump() for image in payload.feedback_images] if payload.feedback_images else None,
+        context_snapshot=payload.context_snapshot,
+    )
+    db.add(feedback)
+    db.commit()
+    return MessageResponse(message="Feedback saved")
 
 
 def _serialize_message(record: ChatMessageRecord) -> StoredMessage:

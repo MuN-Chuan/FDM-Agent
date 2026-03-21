@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import JSZip from 'jszip';
 
 import { api } from '../api/api';
-import type { ChatMessage, Modification } from '../api/api';
+import type { ChatFeedbackPayload, ChatMessage, FeedbackBinaryAsset, FeedbackImageAsset, Modification } from '../api/api';
 import { loadApiSettings } from '../api/apiSettings';
 import { ChatComposer } from '../components/chat/ChatComposer';
 import { ChatMessageList } from '../components/chat/ChatMessageList';
@@ -33,7 +33,7 @@ interface PendingFile {
 }
 
 export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSessionChange }) => {
-    const { t } = useI18n();
+    const { locale, t } = useI18n();
     const {
         bundle,
         isParsing: isParsingPreset,
@@ -82,6 +82,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
     });
 
     const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+    const [pendingPresetAsset, setPendingPresetAsset] = useState<FeedbackBinaryAsset | null>(null);
     const [isDefectModalOpen, setIsDefectModalOpen] = useState(false);
 
     const imageInputRef = useRef<HTMLInputElement>(null);
@@ -106,6 +107,23 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
     const presetValidationError = useMemo(() => (bundle ? validateSelection() : null), [bundle, validateSelection]);
     const modelName = loadApiSettings().model_name;
 
+    const buildPresetSnapshot = useCallback(
+        (fileName: string | null) =>
+            bundle
+                ? {
+                      file_name: fileName,
+                      bundle_format: bundle.format,
+                      bundle_id: bundle.bundleId,
+                      printer: (selection.printer?.data as Record<string, unknown> | undefined) ?? null,
+                      process: (selection.process?.data as Record<string, unknown> | undefined) ?? null,
+                      filaments: selection.filaments.map(
+                          (filament) => (filament.data as Record<string, unknown>) ?? {},
+                      ),
+                  }
+                : undefined,
+        [bundle, selection],
+    );
+
     const handleImageFile = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) {
@@ -128,11 +146,27 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
         }
 
         setPresetFileName(file.name);
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result));
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(file);
+        }).catch(() => '');
+        setPendingPresetAsset(
+            dataUrl
+                ? {
+                      name: file.name,
+                      base64: dataUrl.split(',')[1] || '',
+                      mime_type: file.type || 'application/octet-stream',
+                  }
+                : null,
+        );
         const parsed = await parsePresetFile(file);
         if (parsed) {
             setIsPresetModalOpen(true);
         } else {
             setPresetFileName(null);
+            setPendingPresetAsset(null);
         }
         event.target.value = '';
     };
@@ -278,10 +312,26 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                     role: 'user',
                     content: text,
                     imagePreviewUrl: pendingImage?.previewUrl,
+                    imageAsset: pendingImage
+                        ? {
+                              name: 'uploaded-image',
+                              base64: pendingImage.base64,
+                              preview_url: pendingImage.previewUrl,
+                          }
+                        : undefined,
                     attachedFiles: activeFiles.length > 0 ? activeFiles.map((file) => ({ name: file.name, size: file.size })) : undefined,
+                    attachedFilesDetailed: activeFiles.length > 0 ? activeFiles : undefined,
                     presetName: presetFileName ?? undefined,
+                    presetSnapshot: buildPresetSnapshot(presetFileName),
+                    presetUploadAsset: pendingPresetAsset ?? undefined,
                 },
-                { id: assistantId, role: 'assistant', content: '', isStreaming: true },
+                {
+                    id: assistantId,
+                    role: 'assistant',
+                    content: '',
+                    isStreaming: true,
+                    modelName: apiSettings.model_name,
+                },
             ]);
             setInput('');
             setIsStreaming(true);
@@ -289,6 +339,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             const imageToSend = pendingImage;
             setPendingImage(null);
             setPresetFileName(null);
+            setPendingPresetAsset(null);
             setPendingFiles([]);
 
             const history: ChatMessage[] = [
@@ -395,6 +446,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             }
         },
         [
+            buildPresetSnapshot,
             bundle,
             currentSessionId,
             isStreaming,
@@ -403,6 +455,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             pendingFiles,
             pendingImage,
             presetFileName,
+            pendingPresetAsset,
             presetValidationError,
             selection,
             setInput,
@@ -431,6 +484,88 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             void sendMessage(userMessage.content, true, history);
         },
         [messages, sendMessage],
+    );
+
+    const handleSubmitFeedback = useCallback(
+        async (
+            assistantMessageId: string,
+            payload: {
+                rating: 'up' | 'down';
+                text?: string;
+                images?: FeedbackImageAsset[];
+            },
+        ) => {
+            const assistantIndex = messages.findIndex((message) => message.id === assistantMessageId);
+            if (assistantIndex === -1) {
+                throw new Error('Assistant message not found');
+            }
+
+            const assistantMessage = messages[assistantIndex];
+            const userMessage = [...messages.slice(0, assistantIndex)].reverse().find((message) => message.role === 'user');
+            const conversationHistory = messages
+                .slice(0, assistantIndex)
+                .filter((message) => !message.isStreaming)
+                .map((message) => ({
+                    id: message.id,
+                    role: message.role,
+                    content: message.content,
+                    thought: message.thought,
+                }));
+
+            const feedbackRequest: ChatFeedbackPayload = {
+                session_id: currentSessionId,
+                assistant_message_id: assistantMessage.id,
+                user_message_id: userMessage?.id ?? null,
+                rating: payload.rating,
+                feedback_text: payload.text?.trim() || undefined,
+                feedback_images: payload.images,
+                context_snapshot: {
+                    locale,
+                    model_name: assistantMessage.modelName || modelName,
+                    session_id: currentSessionId,
+                    conversation_history: conversationHistory,
+                    user_message: userMessage
+                        ? {
+                              id: userMessage.id,
+                              role: userMessage.role,
+                              content: userMessage.content,
+                              image: userMessage.imageAsset,
+                              attachments: userMessage.attachedFilesDetailed,
+                              preset: userMessage.presetSnapshot,
+                              preset_name: userMessage.presetName,
+                              preset_upload: userMessage.presetUploadAsset,
+                          }
+                        : null,
+                    assistant_message: {
+                        id: assistantMessage.id,
+                        role: assistantMessage.role,
+                        content: assistantMessage.content,
+                        thought: assistantMessage.thought,
+                        modifications: assistantMessage.modifications,
+                        usage: assistantMessage.usage,
+                    },
+                },
+            };
+
+            await api.submitChatFeedback(feedbackRequest);
+
+            setMessages((current) =>
+                current.map((message) =>
+                    message.id === assistantMessageId
+                        ? {
+                              ...message,
+                              feedback: {
+                                  rating: payload.rating,
+                                  text: payload.text?.trim() || undefined,
+                                  images: payload.images,
+                                  submittedAt: Date.now(),
+                              },
+                          }
+                        : message,
+                ),
+            );
+        },
+        [currentSessionId, locale, messages, modelName, setMessages],
     );
 
     const handleRegenerateMessage = useCallback(
@@ -499,6 +634,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                     onEditMessage={handleEditMessage}
                     onRegenerateMessage={handleRegenerateMessage}
                     onRequestModifications={handleRequestModifications}
+                    onSubmitFeedback={handleSubmitFeedback}
                     bottomRef={bottomRef}
                 />
                 <ChatComposer
@@ -524,6 +660,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                     }}
                     onClearPreset={() => {
                         setPresetFileName(null);
+                        setPendingPresetAsset(null);
                         resetPresetState();
                     }}
                 />
