@@ -1,12 +1,27 @@
 from __future__ import annotations
 
-from sqlalchemy import inspect, text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, MetaData, String, Table, func, inspect, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.schema import CreateIndex
 
 
 def _has_column(engine: Engine, table_name: str, column_name: str) -> bool:
     inspector = inspect(engine)
     return any(column["name"] == column_name for column in inspector.get_columns(table_name))
+
+
+def build_email_login_codes_table(metadata: MetaData) -> Table:
+    return Table(
+        "email_login_codes",
+        metadata,
+        Column("id", String(36), primary_key=True),
+        Column("email", String(255), nullable=False, index=True),
+        Column("user_id", String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True),
+        Column("code_hash", String(128), nullable=False),
+        Column("expires_at", DateTime(timezone=True), nullable=False),
+        Column("consumed_at", DateTime(timezone=True), nullable=True),
+        Column("created_at", DateTime(timezone=True), server_default=func.now(), nullable=False),
+    )
 
 
 def run_startup_migrations(engine: Engine) -> None:
@@ -18,19 +33,9 @@ def run_startup_migrations(engine: Engine) -> None:
                 connection.execute(text("ALTER TABLE users ADD COLUMN points_balance INTEGER DEFAULT 1000 NOT NULL"))
 
         if "email_login_codes" not in inspector.get_table_names():
-            connection.execute(
-                text(
-                    """
-                    CREATE TABLE email_login_codes (
-                        id VARCHAR(36) PRIMARY KEY,
-                        email VARCHAR(255) NOT NULL,
-                        user_id VARCHAR(36) NULL,
-                        code_hash VARCHAR(128) NOT NULL,
-                        expires_at DATETIME NOT NULL,
-                        consumed_at DATETIME NULL,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
-                    )
-                    """
-                )
-            )
-            connection.execute(text("CREATE INDEX IF NOT EXISTS ix_email_login_codes_email ON email_login_codes (email)"))
+            metadata = MetaData()
+            email_login_codes = build_email_login_codes_table(metadata)
+            metadata.create_all(bind=connection, tables=[email_login_codes], checkfirst=True)
+
+            for index in email_login_codes.indexes:
+                connection.execute(CreateIndex(index, if_not_exists=True))
