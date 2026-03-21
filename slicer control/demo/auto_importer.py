@@ -29,7 +29,19 @@ def identify_preset_type(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            return data.get('type')
+            preset_type = data.get('type')
+            if preset_type:
+                return preset_type
+                
+            # If 'type' is missing, infer from specific keys
+            if 'printer_settings_id' in data or 'printer_model' in data:
+                return 'machine'
+            if 'print_settings_id' in data:
+                return 'process'
+            if 'filament_settings_id' in data:
+                return 'filament'
+                
+            return None
     except Exception as e:
         print(f"Error reading JSON: {e}")
         return None

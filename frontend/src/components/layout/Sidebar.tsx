@@ -4,7 +4,6 @@ import {
     Briefcase,
     ChevronRight,
     CreditCard,
-    Database,
     FileText,
     HelpCircle,
     History,
@@ -30,11 +29,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
     const { t } = useI18n();
     const [activeTab, setActiveTab] = React.useState<'tools' | 'history'>('tools');
     const [history, setHistory] = React.useState<ChatSessionMetadata[]>([]);
+    const settingsClickStateRef = React.useRef<{ count: number; lastClickAt: number }>({ count: 0, lastClickAt: 0 });
 
     const navItems: { icon: React.ElementType; label: string; id: AppPage | string; page?: AppPage }[] = [
         { icon: LayoutDashboard, label: t('sidebar.dashboard'), id: 'dashboard' },
         { icon: MessageCircle, label: t('sidebar.chat'), id: 'chat', page: 'chat' },
-        { icon: Database, label: t('sidebar.developer'), id: 'developer', page: 'developer' },
         { icon: History, label: t('sidebar.historyLabel'), id: 'history' },
         { icon: FileText, label: t('sidebar.presets'), id: 'presets' },
         { icon: BarChart3, label: t('sidebar.reports'), id: 'reports' },
@@ -72,6 +71,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
     const handleSessionClick = (id: string) => {
         onSessionChange(id);
         onNavigate('chat');
+    };
+
+    const handleSettingsSecretClick = () => {
+        const now = Date.now();
+        const withinRapidWindow = now - settingsClickStateRef.current.lastClickAt < 800;
+
+        settingsClickStateRef.current = {
+            count: withinRapidWindow ? settingsClickStateRef.current.count + 1 : 1,
+            lastClickAt: now,
+        };
+
+        if (settingsClickStateRef.current.count >= 10) {
+            settingsClickStateRef.current = { count: 0, lastClickAt: 0 };
+            onNavigate('developer');
+        }
     };
 
     return (
@@ -197,7 +211,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                     <HelpCircle size={20} />
                     <span className="text-sm font-medium">{t('sidebar.help')}</span>
                 </button>
-                <button className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-text-dark/60 transition-colors hover:text-text-dark">
+                <button
+                    onClick={handleSettingsSecretClick}
+                    className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2 text-text-dark/60 transition-colors hover:text-text-dark"
+                >
                     <Settings size={20} />
                     <span className="text-sm font-medium">{t('sidebar.settings')}</span>
                 </button>
