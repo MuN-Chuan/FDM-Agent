@@ -1,0 +1,17 @@
+{
+  "name": "Bambu Studio",
+  "version": "1.9.5",
+  "executable": "bin/bambu-studio.exe",
+  "supports": ["stl", "3mf", "step", "stp", "obj"],
+  "cli_args": {
+    "load_settings": "--load_settings",
+    "load_filaments": "--load_filaments",
+    "arrange": "--arrange",
+    "orient": "--orient",
+    "slice": "--slice",
+    "export_3mf": "--export_3mf",
+    "export_gcode": "--export_gcode",
+    "datadir": "--datadir"
+  },
+  "notes": "Place the BambuStudio CLI executable and required DLLs into the bin/ subdirectory."
+}

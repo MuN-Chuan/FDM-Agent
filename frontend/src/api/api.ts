@@ -551,4 +551,87 @@ export const api = {
             throw new Error('Failed to delete chat session');
         }
     },
+
+    // ─── Slicer Engine APIs ───────────────────────────────────────
+
+    async getSlicerEngines(): Promise<SlicerEngineInfo[]> {
+        const response = await fetch(`${BASE_URL}/api/slicer/engines`, defaultFetchOptions);
+        if (!response.ok) {
+            throw new Error('Failed to fetch slicer engines');
+        }
+        return response.json();
+    },
+
+    async submitSlicerJob(
+        modelFile: File,
+        request: SlicerJobSubmission,
+    ): Promise<SlicerJobResult> {
+        const formData = new FormData();
+        formData.append('model', modelFile);
+
+        const requestBlob = new Blob([JSON.stringify(request)], { type: 'application/json' });
+        formData.append('request', requestBlob);
+
+        const response = await fetch(`${BASE_URL}/api/slicer/process`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: 'Slicer processing failed' }));
+            throw new Error(error.detail || 'Slicer processing failed');
+        }
+        return response.json();
+    },
+
+    async getSlicerJobStatus(jobId: string): Promise<SlicerJobResult> {
+        const response = await fetch(`${BASE_URL}/api/slicer/jobs/${jobId}`, defaultFetchOptions);
+        if (!response.ok) {
+            throw new Error('Failed to fetch job status');
+        }
+        return response.json();
+    },
+
+    getSlicerDownloadUrl(jobId: string): string {
+        return `${BASE_URL}/api/slicer/jobs/${jobId}/download`;
+    },
+
+    async cleanupSlicerJob(jobId: string): Promise<void> {
+        await fetch(`${BASE_URL}/api/slicer/jobs/${jobId}`, {
+            ...defaultFetchOptions,
+            method: 'DELETE',
+        });
+    },
 };
+
+// ─── Slicer Engine Types ─────────────────────────────────────────
+
+export interface SlicerEngineInfo {
+    name: string;
+    engine_id: string;
+    version: string;
+    executable: string;
+    available: boolean;
+    supports: string[];
+}
+
+export interface SlicerJobSubmission {
+    engine?: string;
+    preset_data?: Record<string, unknown>;
+    modifications?: Modification[];
+    auto_arrange?: boolean;
+    auto_orient?: boolean;
+    do_slice?: boolean;
+    output_format?: string;
+}
+
+export interface SlicerJobResult {
+    job_id: string;
+    status: 'pending' | 'running' | 'done' | 'failed';
+    output_filename?: string | null;
+    stdout?: string;
+    stderr?: string;
+    duration_seconds?: number;
+    error?: string | null;
+}

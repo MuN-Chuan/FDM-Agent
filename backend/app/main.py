@@ -9,7 +9,7 @@ from app.db import models  # noqa: F401
 from app.db.base import Base
 from app.db.migration import run_startup_migrations
 from app.db.session import engine
-from app.routers import auth, chat, diagnosis, dev, presets
+from app.routers import auth, chat, diagnosis, dev, presets, slicer
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -35,6 +35,7 @@ app.include_router(diagnosis.router)
 app.include_router(chat.router)
 app.include_router(presets.router)
 app.include_router(dev.router)
+app.include_router(slicer.router)
 
 
 @app.get("/health")

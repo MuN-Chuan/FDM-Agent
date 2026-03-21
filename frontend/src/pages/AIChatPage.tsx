@@ -12,6 +12,7 @@ import { ApiSettingsModal } from '../features/diagnosis/ApiSettingsModal';
 import { DefectRecognitionModal } from '../features/diagnosis/DefectRecognitionModal';
 import { PresetSelectionModal } from '../features/diagnosis/PresetSelectionModal';
 import { usePresetParser } from '../features/diagnosis/usePresetParser';
+import { SlicerJobModal } from '../features/slicer/SlicerJobModal';
 import { useI18n } from '../i18n/I18nProvider';
 
 interface AIChatPageProps {
@@ -84,6 +85,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
     const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
     const [pendingPresetAsset, setPendingPresetAsset] = useState<FeedbackBinaryAsset | null>(null);
     const [isDefectModalOpen, setIsDefectModalOpen] = useState(false);
+    const [isSlicerModalOpen, setIsSlicerModalOpen] = useState(false);
+    const [slicerModifications, setSlicerModifications] = useState<Modification[] | undefined>(undefined);
 
     const imageInputRef = useRef<HTMLInputElement>(null);
     const presetInputRef = useRef<HTMLInputElement>(null);
@@ -631,6 +634,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                     messages={messages}
                     hasPresetBundle={!!bundle}
                     onDownloadPresets={handleDownloadPresets}
+                    onGenerate3MF={(mods) => {
+                        setSlicerModifications(mods ?? modifications.length > 0 ? mods ?? modifications : undefined);
+                        setIsSlicerModalOpen(true);
+                    }}
                     onEditMessage={handleEditMessage}
                     onRegenerateMessage={handleRegenerateMessage}
                     onRequestModifications={handleRequestModifications}
@@ -680,6 +687,16 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                 selection={selection}
                 onUpdateSelection={updateSelection}
                 validationError={presetValidationError}
+            />
+            <SlicerJobModal
+                isOpen={isSlicerModalOpen}
+                onClose={() => setIsSlicerModalOpen(false)}
+                modifications={slicerModifications}
+                presetData={bundle ? {
+                    printer: selection.printer?.data || {},
+                    process: selection.process?.data || {},
+                    filament: selection.filaments.map((f) => f.data),
+                } : undefined}
             />
         </div>
     );
