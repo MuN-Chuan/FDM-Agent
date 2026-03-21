@@ -47,6 +47,12 @@ class AuthService:
     def verify_password(self, plain_password: str, password_hash: str) -> bool:
         return pwd_context.verify(plain_password, password_hash)
 
+    def verify_dev_credentials(self, email: str, password: str) -> bool:
+        return (
+            email.strip().lower() == settings.DEV_ADMIN_EMAIL.strip().lower()
+            and password == settings.DEV_ADMIN_PASSWORD
+        )
+
     def create_access_token(self, user: User) -> str:
         now = datetime.now(UTC)
         payload = {
@@ -56,6 +62,16 @@ class AuthService:
             "exp": now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
             "iat": now,
             "type": "access",
+        }
+        return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
+
+    def create_dev_access_token(self, email: str) -> str:
+        now = datetime.now(UTC)
+        payload = {
+            "sub": email,
+            "exp": now + timedelta(hours=settings.DEV_ACCESS_TOKEN_EXPIRE_HOURS),
+            "iat": now,
+            "type": "dev_access",
         }
         return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
 
@@ -245,6 +261,21 @@ class AuthService:
             return None
 
         return self.get_user_by_id(db, user_id)
+
+    def parse_dev_email_from_access_token(self, token: str) -> str | None:
+        try:
+            payload = self.decode_access_token(token)
+        except JWTError:
+            return None
+
+        if payload.get("type") != "dev_access":
+            return None
+
+        email = payload.get("sub")
+        if not email:
+            return None
+
+        return str(email)
 
 
 auth_service = AuthService()

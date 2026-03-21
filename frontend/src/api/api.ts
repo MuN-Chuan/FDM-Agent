@@ -181,6 +181,45 @@ export interface ChatFeedbackPayload {
     context_snapshot: Record<string, unknown>;
 }
 
+export interface DeveloperOverview {
+    users: number;
+    chat_sessions: number;
+    feedback: number;
+    negative_feedback: number;
+}
+
+export interface DeveloperSessionStatus {
+    authenticated: boolean;
+    email: string;
+}
+
+export interface DeveloperFeedbackItem {
+    id: string;
+    session_id?: string | null;
+    user_id?: string | null;
+    assistant_message_id: string;
+    user_message_id?: string | null;
+    rating: 'up' | 'down';
+    user_message_content: string;
+    assistant_message_content: string;
+    assistant_thought?: string | null;
+    feedback_text?: string | null;
+    feedback_images: FeedbackImageAsset[];
+    context_snapshot: Record<string, unknown>;
+    created_at: string;
+}
+
+export interface DeveloperSessionItem {
+    id: string;
+    user_id: string;
+    title: string;
+    timestamp: number;
+    preset_file_name?: string | null;
+    message_count: number;
+    created_at: string;
+    updated_at: string;
+}
+
 async function parseStream(response: Response, onUpdate: (chunk: StreamChunk) => void): Promise<void> {
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
@@ -278,6 +317,75 @@ export const api = {
         if (!response.ok) {
             const error = await response.json().catch(() => ({ detail: 'Failed to submit feedback' }));
             throw new Error(error.detail || 'Failed to submit feedback');
+        }
+    },
+
+    async getDeveloperOverview(): Promise<DeveloperOverview> {
+        const response = await fetch(`${BASE_URL}/api/dev/overview`, defaultFetchOptions);
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('DEV_UNAUTHORIZED');
+            }
+            throw new Error('Failed to fetch developer overview');
+        }
+        return response.json();
+    },
+
+    async getDeveloperFeedback(rating?: 'up' | 'down'): Promise<DeveloperFeedbackItem[]> {
+        const suffix = rating ? `?rating=${rating}` : '';
+        const response = await fetch(`${BASE_URL}/api/dev/feedback${suffix}`, defaultFetchOptions);
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('DEV_UNAUTHORIZED');
+            }
+            throw new Error('Failed to fetch developer feedback');
+        }
+        return response.json();
+    },
+
+    async getDeveloperSessions(): Promise<DeveloperSessionItem[]> {
+        const response = await fetch(`${BASE_URL}/api/dev/sessions`, defaultFetchOptions);
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('DEV_UNAUTHORIZED');
+            }
+            throw new Error('Failed to fetch developer sessions');
+        }
+        return response.json();
+    },
+
+    async getDeveloperSession(): Promise<DeveloperSessionStatus | null> {
+        const response = await fetch(`${BASE_URL}/api/dev/me`, defaultFetchOptions);
+        if (response.status === 401) {
+            return null;
+        }
+        if (!response.ok) {
+            throw new Error('Failed to fetch developer session');
+        }
+        return response.json();
+    },
+
+    async loginDeveloper(email: string, password: string): Promise<DeveloperSessionStatus> {
+        const response = await fetch(`${BASE_URL}/api/dev/login`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: 'Developer login failed' }));
+            throw new Error(error.detail || 'Developer login failed');
+        }
+        return response.json();
+    },
+
+    async logoutDeveloper(): Promise<void> {
+        const response = await fetch(`${BASE_URL}/api/dev/logout`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+        });
+        if (!response.ok) {
+            throw new Error('Developer logout failed');
         }
     },
 

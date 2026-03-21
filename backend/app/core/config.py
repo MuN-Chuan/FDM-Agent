@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     EMAIL_LOGIN_CODE_EXPIRE_MINUTES: int = 10
     EMAIL_LOGIN_DEBUG_RETURN_CODE: bool = True
     EMAIL_LOGIN_SENDER: str = "no-reply@example.com"
+    DEV_ADMIN_EMAIL: str = "mununum@outlook.com"
+    DEV_ADMIN_PASSWORD: str = "a2782282987"
+    DEV_ACCESS_COOKIE_NAME: str = "fdm_dev_access_token"
+    DEV_ACCESS_TOKEN_EXPIRE_HOURS: int = 12
 
     CORS_ORIGINS: list[str] = Field(
         default_factory=lambda: [

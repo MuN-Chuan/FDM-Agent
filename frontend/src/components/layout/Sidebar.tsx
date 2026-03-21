@@ -4,6 +4,7 @@ import {
     Briefcase,
     ChevronRight,
     CreditCard,
+    Database,
     FileText,
     HelpCircle,
     History,
@@ -33,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
     const navItems: { icon: React.ElementType; label: string; id: AppPage | string; page?: AppPage }[] = [
         { icon: LayoutDashboard, label: t('sidebar.dashboard'), id: 'dashboard' },
         { icon: MessageCircle, label: t('sidebar.chat'), id: 'chat', page: 'chat' },
+        { icon: Database, label: t('sidebar.developer'), id: 'developer', page: 'developer' },
         { icon: History, label: t('sidebar.historyLabel'), id: 'history' },
         { icon: FileText, label: t('sidebar.presets'), id: 'presets' },
         { icon: BarChart3, label: t('sidebar.reports'), id: 'reports' },
