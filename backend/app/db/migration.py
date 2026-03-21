@@ -11,6 +11,9 @@ def _has_column(engine: Engine, table_name: str, column_name: str) -> bool:
 
 
 def build_email_login_codes_table(metadata: MetaData) -> Table:
+    if "users" not in metadata.tables:
+        Table("users", metadata, Column("id", String(36), primary_key=True))
+
     return Table(
         "email_login_codes",
         metadata,
