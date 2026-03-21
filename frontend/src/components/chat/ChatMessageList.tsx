@@ -26,7 +26,49 @@ interface ChatMessageListProps {
 }
 
 function shouldShowModificationShortcut(content: string) {
-    return /(参数|优化|建议|切片|parameter|optimi|suggest|slice)/i.test(content);
+    return /(\u53c2\u6570|\u4f18\u5316|\u5efa\u8bae|\u5207\u7247|parameter|optimi|suggest|slice)/i.test(content);
+}
+
+function renderAssistantContent(content: string) {
+    return content.split('\n\n').map((block, index) => {
+        const normalizedBlock = block.trim();
+
+        if (!normalizedBlock) {
+            return null;
+        }
+
+        if (normalizedBlock.startsWith('### ')) {
+            return (
+                <h3 key={index} className="mt-6 mb-3 font-heading text-[1.15rem] font-bold tracking-[0.01em] text-cta">
+                    {normalizedBlock.replace('### ', '')}
+                </h3>
+            );
+        }
+
+        if (normalizedBlock.startsWith('#### ')) {
+            return (
+                <h4 key={index} className="mt-5 mb-2 font-heading text-[1rem] font-semibold tracking-[0.01em] text-slate-700 dark:text-slate-200">
+                    {normalizedBlock.replace('#### ', '')}
+                </h4>
+            );
+        }
+
+        if (normalizedBlock.startsWith('- ') || normalizedBlock.startsWith('* ')) {
+            return (
+                <ul key={index} className="my-3 space-y-2 pl-6 text-[15px] leading-8 tracking-[0.01em] marker:text-cta">
+                    {normalizedBlock.split('\n').map((line, lineIndex) => (
+                        <li key={lineIndex}>{line.replace(/^[-*]\s/, '')}</li>
+                    ))}
+                </ul>
+            );
+        }
+
+        return (
+            <p key={index} className="my-3 text-[15px] leading-8 tracking-[0.01em] text-slate-700 dark:text-slate-200/90">
+                {normalizedBlock}
+            </p>
+        );
+    });
 }
 
 function AssistantMessage({
@@ -96,8 +138,8 @@ function AssistantMessage({
                 )}
 
                 {!!message.content && (
-                    <div className="max-w-none whitespace-pre-wrap text-sm leading-relaxed text-text-light/90 dark:text-text-dark/90">
-                        {message.content}
+                    <div className="max-w-none font-body text-[15px] leading-8 tracking-[0.01em] text-slate-700 dark:text-slate-200/90">
+                        {renderAssistantContent(message.content)}
                         {message.isStreaming && (
                             <span className="ml-1 inline-block h-4 w-1.5 animate-pulse align-middle bg-cta/40" />
                         )}
@@ -134,34 +176,39 @@ function AssistantMessage({
                 )}
 
                 {message.modifications && message.modifications.length > 0 && (
-                    <div className="animate-in mt-4 overflow-hidden rounded-xl border border-cta/30 bg-cta/5 shadow-sm fade-in slide-in-from-top-2">
-                        <button
-                            onClick={() => setModificationsOpen((value) => !value)}
-                            className="flex w-full items-center justify-between border-b border-cta/10 bg-cta/10 px-4 py-3 transition-colors hover:bg-cta/15"
-                        >
-                            <div className="flex items-center gap-2">
-                                <Wrench size={14} className="text-cta" />
-                                <span className="text-xs font-bold uppercase tracking-wider text-cta">{t('chat.modifications')}</span>
-                            </div>
-                            {modificationsOpen ? (
-                                <ChevronUp size={14} className="text-text-light/30" />
-                            ) : (
-                                <ChevronDown size={14} className="text-text-light/30" />
+                    <div className="mt-4 space-y-3">
+                        <div className="overflow-hidden rounded-2xl border border-cta/25 bg-white shadow-[0_14px_30px_rgba(34,197,94,0.08)] dark:border-cta/25 dark:bg-[#132419]">
+                            <button
+                                onClick={() => setModificationsOpen((value) => !value)}
+                                className="flex w-full items-center justify-between border-b border-cta/15 bg-cta/12 px-4 py-3 transition-colors hover:bg-cta/16 dark:border-cta/20 dark:bg-cta/14 dark:hover:bg-cta/18"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Wrench size={14} className="text-cta" />
+                                    <span className="text-sm font-bold text-cta">{t('chat.modifications')}</span>
+                                </div>
+                                {modificationsOpen ? (
+                                    <ChevronUp size={14} className="text-cta/70" />
+                                ) : (
+                                    <ChevronDown size={14} className="text-cta/70" />
+                                )}
+                            </button>
+                            {modificationsOpen && (
+                                <div className="p-4">
+                                    <ParameterDiffViewer modifications={message.modifications} />
+                                </div>
                             )}
-                        </button>
-                        {modificationsOpen && (
-                            <div className="space-y-4 p-4">
-                                <ParameterDiffViewer modifications={message.modifications} />
-                                <button
-                                    onClick={() => void onDownloadPresets(message.modifications)}
-                                    disabled={!hasPresetBundle}
-                                    className="btn-cta w-full justify-center rounded-xl py-2.5 disabled:opacity-40"
-                                >
-                                    <Download size={14} />
-                                    {t('chat.downloadPreset')}
-                                </button>
-                            </div>
-                        )}
+                        </div>
+
+                        <div className="flex justify-start">
+                            <button
+                                onClick={() => void onDownloadPresets(message.modifications)}
+                                disabled={!hasPresetBundle}
+                                className="inline-flex min-w-[220px] cursor-pointer items-center justify-center gap-2 rounded-2xl bg-cta px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-cta/20 transition-all hover:-translate-y-0.5 hover:bg-[#1fb457] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 dark:hover:bg-[#1fb457]"
+                            >
+                                <Download size={14} />
+                                {t('chat.downloadPreset')}
+                            </button>
+                        </div>
                     </div>
                 )}
 

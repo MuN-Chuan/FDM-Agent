@@ -66,11 +66,18 @@ export interface LoginPayload {
 
 export interface EmailCodeRequestPayload {
     email: string;
+    purpose?: 'login' | 'register';
 }
 
 export interface EmailCodeLoginPayload {
     email: string;
     code: string;
+}
+
+export interface EmailCodeRegisterPayload {
+    email: string;
+    code: string;
+    invite_code?: string;
 }
 
 export interface RegisterPayload extends LoginPayload {
@@ -284,6 +291,21 @@ export const api = {
         if (!response.ok) {
             const error = await response.json().catch(() => ({ detail: 'Code login failed' }));
             throw new Error(error.detail || 'Code login failed');
+        }
+        const data: AuthResponse = await response.json();
+        return data.user;
+    },
+
+    async registerWithEmailCode(payload: EmailCodeRegisterPayload): Promise<UserProfile> {
+        const response = await fetch(`${BASE_URL}/api/auth/email-code/register`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({ detail: 'Code register failed' }));
+            throw new Error(error.detail || 'Code register failed');
         }
         const data: AuthResponse = await response.json();
         return data.user;

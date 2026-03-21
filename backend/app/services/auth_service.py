@@ -22,10 +22,9 @@ class AuthService:
     def get_registration_policy(self) -> dict[str, bool | str]:
         mode = settings.REGISTRATION_MODE.strip().lower()
         registration_enabled = mode != "disabled"
-        invite_required = mode == "invite_only"
         return {
             "mode": mode,
-            "invite_required": invite_required,
+            "invite_required": False,
             "registration_enabled": registration_enabled,
         }
 
@@ -35,9 +34,7 @@ class AuthService:
             raise ValueError("Registration is currently disabled")
 
         normalized_code = invite_code.strip() if invite_code else None
-        if policy["invite_required"]:
-            if not normalized_code:
-                raise ValueError("Invite code is required")
+        if normalized_code:
             valid_codes = {code.strip() for code in settings.INVITE_CODES if code.strip()}
             if valid_codes and normalized_code not in valid_codes:
                 raise ValueError("Invite code is invalid")
@@ -178,19 +175,7 @@ class AuthService:
 
     def login_with_email_code(self, db: Session, email: str, code: str) -> User:
         normalized_email = email.lower()
-        record = db.scalar(
-            select(EmailLoginCode)
-            .where(EmailLoginCode.email == normalized_email)
-            .order_by(EmailLoginCode.created_at.desc())
-        )
-        if record is None:
-            raise ValueError("Verification code not found")
-        if record.consumed_at is not None:
-            raise ValueError("Verification code already used")
-        if record.expires_at < datetime.now(UTC):
-            raise ValueError("Verification code expired")
-        if record.code_hash != self.hash_email_code(code):
-            raise ValueError("Verification code is invalid")
+        record = self.get_valid_email_code_record(db, normalized_email, code)
 
         user = self.get_user_by_email(db, normalized_email)
         if user is None:
@@ -202,6 +187,46 @@ class AuthService:
         db.commit()
         db.refresh(user)
         return user
+
+    def register_with_email_code(self, db: Session, email: str, code: str, invite_code: str | None = None) -> User:
+        normalized_email = email.lower()
+        if self.get_user_by_email(db, normalized_email):
+            raise ValueError("Email already registered")
+
+        normalized_code = self.validate_registration(invite_code)
+        record = self.get_valid_email_code_record(db, normalized_email, code)
+
+        user = User(
+            email=normalized_email,
+            password_hash=self.hash_password(secrets.token_urlsafe(32)),
+            invite_code_used=normalized_code,
+            points_balance=settings.DEFAULT_USER_POINTS,
+        )
+        db.add(user)
+        db.flush()
+
+        record.consumed_at = datetime.now(UTC)
+        record.user_id = user.id
+        db.add(record)
+        db.commit()
+        db.refresh(user)
+        return user
+
+    def get_valid_email_code_record(self, db: Session, email: str, code: str) -> EmailLoginCode:
+        record = db.scalar(
+            select(EmailLoginCode)
+            .where(EmailLoginCode.email == email.lower())
+            .order_by(EmailLoginCode.created_at.desc())
+        )
+        if record is None:
+            raise ValueError("Verification code not found")
+        if record.consumed_at is not None:
+            raise ValueError("Verification code already used")
+        if record.expires_at < datetime.now(UTC):
+            raise ValueError("Verification code expired")
+        if record.code_hash != self.hash_email_code(code):
+            raise ValueError("Verification code is invalid")
+        return record
 
     def send_email_login_code(self, email: str, code: str) -> None:
         print(f"[email-login] Send code {code} to {email} from {settings.EMAIL_LOGIN_SENDER}")

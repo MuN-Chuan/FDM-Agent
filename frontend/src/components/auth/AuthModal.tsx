@@ -82,6 +82,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
         }
     };
 
+    const handleSendRegisterCode = async () => {
+        setError(null);
+        setCodeMessage(null);
+        setDebugCode(null);
+        setIsSendingCode(true);
+
+        try {
+            const response = await api.requestEmailCode({ email, purpose: 'register' });
+            setCodeMessage(response.message || t('auth.codeSent'));
+            setDebugCode(response.debug_code ?? null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+        } finally {
+            setIsSendingCode(false);
+        }
+    };
+
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
         setError(null);
@@ -94,7 +111,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
 
             let user: UserProfile;
             if (mode === 'register') {
-                user = await api.register({ email, password, invite_code: inviteCode || undefined });
+                user = await api.registerWithEmailCode({ email, code: emailCode, invite_code: inviteCode || undefined });
             } else if (loginMethod === 'password') {
                 user = await api.login({ email, password });
             } else {
@@ -204,7 +221,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                         />
                     </label>
 
-                    {(mode === 'register' || loginMethod === 'password') && (
+                    {mode === 'login' && loginMethod === 'password' && (
                         <label className="block">
                             <span className="mb-2 block text-xs font-bold uppercase tracking-[0.16em] text-text-light/45">
                                 {t('auth.password')}
@@ -221,7 +238,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                         </label>
                     )}
 
-                    {mode === 'login' && loginMethod === 'email_code' && (
+                    {(mode === 'register' || (mode === 'login' && loginMethod === 'email_code')) && (
                         <>
                             <div className="flex gap-2">
                                 <label className="block flex-1">
@@ -239,7 +256,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                                 </label>
                                 <button
                                     type="button"
-                                    onClick={() => void handleSendCode()}
+                                    onClick={() =>
+                                        void (mode === 'register' ? handleSendRegisterCode() : handleSendCode())
+                                    }
                                     disabled={isSendingCode || !email}
                                     className="mt-7 flex items-center gap-2 rounded-2xl border border-cta/20 bg-cta/10 px-4 py-3 text-sm font-bold text-cta transition hover:bg-cta/15 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
@@ -297,7 +316,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuc
                             <LogIn size={18} />
                         )}
                         {mode === 'register'
-                            ? t('auth.registerSubmit')
+                            ? t('auth.codeRegisterSubmit')
                             : loginMethod === 'email_code'
                               ? t('auth.codeLoginSubmit')
                               : t('auth.loginSubmit')}

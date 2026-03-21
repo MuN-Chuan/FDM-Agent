@@ -36,6 +36,8 @@ const zhMessages: Messages = {
     'auth.registerTitle': '\u521b\u5efa\u6d4b\u8bd5\u8d26\u53f7',
     'auth.passwordMode': '\u5bc6\u7801\u767b\u5f55',
     'auth.emailCodeMode': '\u90ae\u7bb1\u9a8c\u8bc1\u7801\u767b\u5f55',
+    'auth.passwordRegisterMode': '\u5bc6\u7801\u6ce8\u518c',
+    'auth.emailCodeRegisterMode': '\u9a8c\u8bc1\u7801\u6ce8\u518c',
     'auth.loginDesc': '\u767b\u5f55\u540e\u5373\u53ef\u540c\u6b65\u8d26\u53f7\u4fe1\u606f\u4e0e\u79ef\u5206\u72b6\u6001\u3002',
     'auth.registerDesc': '\u6d4b\u8bd5\u9636\u6bb5\u53ef\u76f4\u63a5\u521b\u5efa\u8d26\u53f7\uff0c\u79ef\u5206\u7531\u540e\u53f0\u7edf\u4e00\u63a7\u5236\u3002',
     'auth.registrationClosed': '\u5f53\u524d\u6682\u672a\u5f00\u653e\u6ce8\u518c\uff0c\u5df2\u6709\u6d4b\u8bd5\u8d26\u53f7\u4ecd\u53ef\u767b\u5f55\u3002',
@@ -56,6 +58,7 @@ const zhMessages: Messages = {
     'auth.loginSubmit': '\u767b\u5f55',
     'auth.codeLoginSubmit': '\u9a8c\u8bc1\u7801\u767b\u5f55',
     'auth.registerSubmit': '\u6ce8\u518c\u5e76\u5f00\u59cb\u4f7f\u7528',
+    'auth.codeRegisterSubmit': '\u9a8c\u8bc1\u7801\u6ce8\u518c',
     'auth.codeSent': '\u9a8c\u8bc1\u7801\u5df2\u53d1\u9001\u3002\u6d4b\u8bd5\u9636\u6bb5\u5982\u672a\u63a5\u5165\u90ae\u4ef6\u670d\u52a1\uff0c\u53ef\u4f7f\u7528\u540e\u53f0\u8fd4\u56de\u7684\u8c03\u8bd5\u9a8c\u8bc1\u7801\u3002',
     'auth.debugCode': '\u8c03\u8bd5\u9a8c\u8bc1\u7801',
     'chat.welcome':
@@ -129,6 +132,8 @@ const enMessages: Messages = {
     'auth.registerTitle': 'Create test account',
     'auth.passwordMode': 'Password',
     'auth.emailCodeMode': 'Email code login',
+    'auth.passwordRegisterMode': 'Password register',
+    'auth.emailCodeRegisterMode': 'Code register',
     'auth.loginDesc': 'Sign in to sync account status and points.',
     'auth.registerDesc': 'During testing, you can create an account directly. Points are managed by the backend.',
     'auth.registrationClosed': 'Registration is currently closed. Existing test accounts can still sign in.',
@@ -149,6 +154,7 @@ const enMessages: Messages = {
     'auth.loginSubmit': 'Sign in',
     'auth.codeLoginSubmit': 'Sign in with code',
     'auth.registerSubmit': 'Register and start',
+    'auth.codeRegisterSubmit': 'Register with code',
     'auth.codeSent': 'Verification code sent. During testing, you can use the backend debug code if email is not configured.',
     'auth.debugCode': 'Debug code',
     'chat.welcome':
