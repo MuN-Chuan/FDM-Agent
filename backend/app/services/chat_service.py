@@ -17,10 +17,11 @@ SYSTEM_PROMPT = """你是一个专业的 FDM (熔融沉积成型) 3D 打印顾�
 回答要求：
 - 使用清晰的 Markdown 格式
 - 语言：中文，技术术语可附英文
+- 特别注意：对于任何下拉选择框（枚举值）类型的参数，在 `json_modifications` 的 `new` 字段中，**必须严格使用全小写的内部英文实际值**（例如：必须输出 "rear" 而绝不能是 "Rear" 或 "背后"；必须输出 "aligned" 而绝不能是 "Aligned" 或 "对齐"）。绝对不能首字母大写或使用本地化翻译。
 - 如果用户请求参数修改，需在回答末尾附加一个特殊 JSON 块，格式如下：
 ```json_modifications
 [
-  {"name": "layer_height", "category": "process", "old": "0.2", "new": "0.16", "range": "0.08-0.32mm", "reason": "提升表面质量", "risk": "low"}
+  {"name": "seam_position", "category": "process", "old": "aligned", "new": "rear", "range": "nearest,aligned,rear,random", "reason": "将接缝藏在背后", "risk": "low"}
 ]
 ```
 - 如果用户没有明确请求参数修改，不要输出 json_modifications 块
@@ -44,6 +45,8 @@ class ChatService:
 
     def _filter_preset(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Remove G-code and thumbnails from preset for context."""
+        if not isinstance(data, dict):
+            return data
         filtered = {}
         for k, v in data.items():
             k_lower = k.lower()
@@ -51,10 +54,8 @@ class ChatService:
                 continue
             if isinstance(v, dict):
                 filtered[k] = self._filter_preset(v)
-            elif isinstance(v, list):
-                if len(v) < 100:
-                    filtered[k] = v
             else:
+                # No longer stripping lists by length, as 3MF settings might have important lists
                 filtered[k] = v
         return filtered
 
@@ -112,14 +113,24 @@ class ChatService:
             is_last = (i == len(messages) - 1)
 
             if msg.role == "user":
-                content: Any = msg.content
+                content_text = msg.content
+                
+                # If message has its own hidden 3MF attachment, inject it
+                if msg.slicer_result:
+                    # slicer_result is the ThreeMFParseResult dict
+                    settings = msg.slicer_result.get("full_settings", {})
+                    if settings:
+                        filtered_3mf = self._filter_preset(settings)
+                        content_text = f"【用户附带了 3MF 预设文件上下文】\n```json\n{json.dumps(filtered_3mf, ensure_ascii=False, indent=2)}\n```\n\n{content_text}"
 
                 # If last message and there's an image, add it (Vision capabilities)
                 if is_last and image_base64:
                     content = [
-                        {"type": "text", "text": msg.content},
+                        {"type": "text", "text": content_text},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
                     ]
+                else:
+                    content = content_text
 
                 # If user is explicitly requesting modifications
                 if is_last and request_modifications:

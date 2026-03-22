@@ -1,57 +1,80 @@
 import { useCallback, useRef, useState } from 'react';
 
-import type { Modification, SlicerJobResult } from '../../api/api';
+import type { Modification, ThreeMFParseResult, ThreeMFModifyResponse } from '../../api/api';
 import { api } from '../../api/api';
 
-export type SlicerJobPhase = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
+export type SlicerJobPhase = 'idle' | 'parsing' | 'wait_for_ai' | 'modifying' | 'done_repack' | 'done_cli' | 'error';
 
 interface UseSlicerJobReturn {
     phase: SlicerJobPhase;
-    result: SlicerJobResult | null;
+    parseResult: ThreeMFParseResult | null;
+    modifyResult: ThreeMFModifyResponse | null;
     error: string | null;
-    submitJob: (modelFile: File, modifications?: Modification[], presetData?: Record<string, unknown>) => Promise<void>;
+    uploadAndParse: (file: File) => Promise<ThreeMFParseResult | undefined>;
+    setExistingJob: (result: ThreeMFParseResult) => void;
+    // Step 2: Apply AI modifications after they are generated
+    applyModifications: (modifications: Modification[]) => Promise<void>;
     downloadUrl: string | null;
     reset: () => void;
 }
 
 export function useSlicerJob(): UseSlicerJobReturn {
     const [phase, setPhase] = useState<SlicerJobPhase>('idle');
-    const [result, setResult] = useState<SlicerJobResult | null>(null);
+    const [parseResult, setParseResult] = useState<ThreeMFParseResult | null>(null);
+    const [modifyResult, setModifyResult] = useState<ThreeMFModifyResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
+    
+    // Track job ID to allow cleanup or subsequent modification
     const jobIdRef = useRef<string | null>(null);
 
-    const submitJob = useCallback(async (
-        modelFile: File,
-        modifications?: Modification[],
-        presetData?: Record<string, unknown>,
-    ) => {
-        setPhase('uploading');
+    const uploadAndParse = useCallback(async (file: File) => {
+        setPhase('parsing');
         setError(null);
-        setResult(null);
+        setParseResult(null);
+        setModifyResult(null);
 
         try {
-            setPhase('processing');
-            const jobResult = await api.submitSlicerJob(modelFile, {
+            const result = await api.parse3MF(file);
+            jobIdRef.current = result.job_id;
+            setParseResult(result);
+            setPhase('wait_for_ai');
+            return result;
+        } catch (err) {
+            setError(err instanceof Error ? err.message : String(err));
+            setPhase('error');
+            return undefined;
+        }
+    }, []);
+
+    const setExistingJob = useCallback((result: ThreeMFParseResult) => {
+        jobIdRef.current = result.job_id;
+        setParseResult(result);
+        setPhase('wait_for_ai');
+    }, []);
+
+    const applyModifications = useCallback(async (modifications: Modification[]) => {
+        if (!jobIdRef.current) {
+            setError('No active 3MF job found. Please upload a 3MF file first.');
+            setPhase('error');
+            return;
+        }
+
+        setPhase('modifying');
+        setError(null);
+
+        try {
+            const result = await api.modify3MF({
+                job_id: jobIdRef.current,
                 modifications,
-                preset_data: presetData,
-                auto_arrange: true,
-                auto_orient: true,
-                do_slice: false,
-                output_format: '3mf',
+                repack_only: true // Inline python repack by default for now
             });
-
-            jobIdRef.current = jobResult.job_id;
-
-            if (jobResult.status === 'done') {
-                setResult(jobResult);
-                setPhase('done');
-            } else if (jobResult.status === 'failed') {
-                setError(jobResult.error || 'Processing failed');
-                setPhase('error');
-            } else {
-                // Still processing — poll for completion
-                setResult(jobResult);
-                setPhase('processing');
+            
+            setModifyResult(result);
+            
+            if (result.status === 'done') {
+                setPhase('done_repack');
+            } else if (result.status === 'pending_cli_repack') {
+                setPhase('done_cli'); // Will be picked up by ClientAgentBridge later
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
@@ -59,19 +82,30 @@ export function useSlicerJob(): UseSlicerJobReturn {
         }
     }, []);
 
-    const downloadUrl = result?.status === 'done' && result.job_id
-        ? api.getSlicerDownloadUrl(result.job_id)
+    const downloadUrl = (phase === 'done_repack' && jobIdRef.current)
+        ? api.getSlicer3mfDownloadUrl(jobIdRef.current)
         : null;
 
     const reset = useCallback(() => {
         if (jobIdRef.current) {
-            void api.cleanupSlicerJob(jobIdRef.current);
+            // Optional cleanup if backend supports it
             jobIdRef.current = null;
         }
         setPhase('idle');
-        setResult(null);
+        setParseResult(null);
+        setModifyResult(null);
         setError(null);
     }, []);
 
-    return { phase, result, error, submitJob, downloadUrl, reset };
+    return { 
+        phase, 
+        parseResult, 
+        modifyResult, 
+        error, 
+        uploadAndParse, 
+        setExistingJob,
+        applyModifications, 
+        downloadUrl, 
+        reset 
+    };
 }

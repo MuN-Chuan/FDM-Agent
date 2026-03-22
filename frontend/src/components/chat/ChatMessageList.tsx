@@ -15,7 +15,7 @@ import {
     X,
 } from 'lucide-react';
 
-import type { FeedbackImageAsset, Modification } from '../../api/api';
+import type { FeedbackImageAsset, Modification, ThreeMFParseResult } from '../../api/api';
 import { ParameterDiffViewer } from '../../features/diagnosis/ParameterDiffViewer';
 import { useI18n } from '../../i18n/I18nProvider';
 import type { ChatUIMessage } from './types';
@@ -103,6 +103,7 @@ function AssistantMessage({
     isLast,
     onDownloadPresets,
     onGenerate3MF,
+    existingSlicerResult,
     onRegenerateMessage,
     onRequestModifications,
     onSubmitFeedback,
@@ -111,9 +112,10 @@ function AssistantMessage({
     hasPresetBundle: boolean;
     isLast: boolean;
     onDownloadPresets: (mods?: Modification[]) => void | Promise<void>;
-    onGenerate3MF: (mods?: Modification[]) => void | Promise<void>;
+    onGenerate3MF: (mods?: Modification[], existingResult?: ThreeMFParseResult) => void | Promise<void>;
     onRegenerateMessage: (messageId: string) => void | Promise<void>;
     onRequestModifications: (messageId: string) => void | Promise<void>;
+    existingSlicerResult?: ThreeMFParseResult;
     onSubmitFeedback: (
         messageId: string,
         payload: { rating: 'up' | 'down'; text?: string; images?: FeedbackImageAsset[] },
@@ -301,19 +303,6 @@ function AssistantMessage({
                             <button
                                 onClick={() => void onDownloadPresets(message.modifications)}
                                 disabled={!hasPresetBundle}
-                                className="inline-flex min-w-[220px] cursor-pointer items-center justify-center gap-2 rounded-2xl bg-cta px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-cta/20 transition-all hover:-translate-y-0.5 hover:bg-[#1fb457] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 dark:hover:bg-[#1fb457]"
-                            >
-                                <Download size={14} />
-                                {t('chat.downloadPreset')}
-                            </button>
-                            <button
-                                onClick={() => void onGenerate3MF(message.modifications)}
-                                className="inline-flex min-w-[200px] cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-cta bg-white px-5 py-2.5 text-sm font-bold text-cta shadow-md shadow-cta/10 transition-all hover:-translate-y-0.5 hover:bg-cta/5 dark:bg-transparent dark:hover:bg-cta/10"
-                            >
-                                <FileBox size={14} />
-                                生成3MF文件
-                            </button>
-                        </div>
                     </div>
                 )}
 
@@ -478,7 +467,6 @@ function AssistantMessage({
         </div>
     );
 }
-
 function UserMessage({
     message,
     onEditMessage,
@@ -498,7 +486,7 @@ function UserMessage({
         <div className="group/msg flex flex-col items-end gap-2">
             <div className="flex w-full justify-end gap-3">
                 <div className="flex max-w-[85%] flex-col items-end space-y-2">
-                    {(message.imagePreviewUrl || message.presetName || message.attachedFiles?.length) && (
+                    {(message.imagePreviewUrl || message.presetName || message.attachedFiles?.length || message.slicerResult) && (
                         <div className="mb-1 flex w-full flex-wrap justify-end gap-2">
                             {message.imagePreviewUrl && (
                                 <div className="max-w-sm overflow-hidden rounded-xl border border-secondary/20 shadow-sm">
@@ -507,6 +495,12 @@ function UserMessage({
                                         alt="uploaded"
                                         className="max-h-60 w-full object-contain bg-secondary/5"
                                     />
+                                </div>
+                            )}
+                            {message.slicerResult && (
+                                <div className="flex items-center gap-2 rounded-xl border border-cta/20 bg-cta/10 px-3 py-2 text-xs text-cta shadow-sm">
+                                    <FileBox size={14} />
+                                    <span>3MF: {message.slicerResult.printer_model || 'Project'}</span>
                                 </div>
                             )}
                             {message.presetName && (
@@ -590,23 +584,27 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
 }) => (
     <div className="custom-scrollbar relative flex-1 overflow-y-auto pb-[40vh] pt-8">
         <div className="mx-auto w-full max-w-4xl space-y-8 px-4 sm:px-6">
-            {messages.map((message, index) =>
-                message.role === 'user' ? (
-                    <UserMessage key={message.id} message={message} onEditMessage={onEditMessage} />
-                ) : (
-                    <AssistantMessage
-                        key={message.id}
-                        message={message}
-                        hasPresetBundle={hasPresetBundle}
-                        isLast={index === messages.length - 1}
-                        onDownloadPresets={onDownloadPresets}
-                        onGenerate3MF={onGenerate3MF}
-                        onRegenerateMessage={onRegenerateMessage}
-                        onRequestModifications={onRequestModifications}
-                        onSubmitFeedback={onSubmitFeedback}
-                    />
-                ),
-            )}
+            {messages.map((message, index) => {
+                if (message.role === 'user') {
+                    return <UserMessage key={message.id} message={message} onEditMessage={onEditMessage} />;
+                } else {
+                    const lastUserMessage = [...messages].slice(0, index).reverse().find((m) => m.role === 'user' && m.slicerResult);
+                    return (
+                        <AssistantMessage
+                            key={message.id}
+                            message={message}
+                            hasPresetBundle={hasPresetBundle}
+                            isLast={index === messages.length - 1}
+                            onDownloadPresets={onDownloadPresets}
+                            onGenerate3MF={onGenerate3MF}
+                            existingSlicerResult={lastUserMessage?.slicerResult}
+                            onRegenerateMessage={onRegenerateMessage}
+                            onRequestModifications={onRequestModifications}
+                            onSubmitFeedback={onSubmitFeedback}
+                        />
+                    );
+                }
+            })}
             <div ref={bottomRef} />
         </div>
     </div>

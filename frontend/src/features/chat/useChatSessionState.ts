@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { api } from '../../api/api';
-import type { Modification } from '../../api/api';
+import type { Modification, ThreeMFParseResult } from '../../api/api';
 import { chatStorage } from '../../api/chatStorage';
 import type { ChatSessionData, ChatUIMessage } from './chatSessionTypes';
 import type { ParsedBundle, PresetSelection } from '../diagnosis/presetTypes';
@@ -26,6 +26,7 @@ export function useChatSessionState({
     const [messages, setMessages] = useState<ChatUIMessage[]>([createWelcomeMessage()]);
     const [input, setInput] = useState('');
     const [pendingImage, setPendingImage] = useState<{ base64: string; previewUrl: string } | null>(null);
+    const [pendingSlicerResult, setPendingSlicerResult] = useState<ThreeMFParseResult | null>(null);
     const [presetFileName, setPresetFileName] = useState<string | null>(null);
     const [modifications, setModifications] = useState<Modification[]>([]);
     const [paramCategoryMap, setParamCategoryMap] = useState<Record<string, string[]> | null>(null);
@@ -52,6 +53,7 @@ export function useChatSessionState({
             setMessages([createWelcomeMessage()]);
             setModifications([]);
             setPendingImage(null);
+            setPendingSlicerResult(null);
             setPresetFileName(null);
             resetPresetState();
 
@@ -107,6 +109,8 @@ export function useChatSessionState({
         setInput,
         pendingImage,
         setPendingImage,
+        pendingSlicerResult,
+        setPendingSlicerResult,
         presetFileName,
         setPresetFileName,
         modifications,

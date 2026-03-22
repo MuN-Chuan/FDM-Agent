@@ -1,0 +1,20 @@
+{
+  "name": "@fdm-ai/client-agent",
+  "version": "1.0.0",
+  "description": "FDM-AI 本地 Client Agent — 通过 WebSocket 控制本机 BambuStudio CLI 和 bambu-cli",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "keywords": ["fdm", "bambu", "3mf", "client-agent"],
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.0",
+    "axios": "^1.6.0",
+    "form-data": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

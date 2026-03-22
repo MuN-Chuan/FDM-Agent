@@ -20,7 +20,7 @@ class EngineInfo(BaseModel):
 
 
 class SlicerJobRequest(BaseModel):
-    """Request to process a model through the slicer engine."""
+    """Request to process a model through the slicer engine (CLI-based, future use)."""
     engine: SlicerEngine = Field(SlicerEngine.BAMBU, description="Which slicer engine to use")
     preset_data: Optional[Dict[str, Any]] = Field(None, description="Parsed preset data (printer/process/filament)")
     modifications: List[Dict[str, Any]] = Field(default_factory=list, description="AI json_modifications to apply")
@@ -46,3 +46,49 @@ class SlicerJobResult(BaseModel):
     stderr: str = ""
     duration_seconds: float = 0.0
     error: Optional[str] = None
+
+
+# ─── 3MF Parse / Modify workflow models ──────────────────────────
+
+class ThreeMFParseResult(BaseModel):
+    """Result of parsing a 3MF file's embedded presets."""
+    job_id: str = Field(..., description="Server-side job ID to reference this 3MF")
+    # Identification
+    printer_settings_id: str = ""
+    print_settings_id: str = ""
+    filament_settings_id: str = ""
+    printer_model: str = ""
+    # Key preset summary for AI context
+    summary: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extracted key preset fields for AI context (subset)"
+    )
+    full_settings: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Complete original project_settings.config JSON"
+    )
+    # Object / plate info
+    objects: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="3D objects in the 3MF (name, id)"
+    )
+    plates: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Print plates in the 3MF"
+    )
+
+
+class ThreeMFModifyRequest(BaseModel):
+    """Request to apply AI modifications to a previously uploaded 3MF."""
+    job_id: str = Field(..., description="Job ID from the parse step")
+    modifications: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="AI json_modifications to apply to the 3MF presets"
+    )
+    repack_only: bool = Field(
+        True,
+        description=(
+            "If True, modify project_settings.config and repack inline (pure Python). "
+            "If False, the Client Agent is expected to call BambuStudio CLI for full repack."
+        ),
+    )

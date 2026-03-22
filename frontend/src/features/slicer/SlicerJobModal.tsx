@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
-import { Download, FileBox, Loader2, Upload, X, AlertTriangle } from 'lucide-react';
+import { Download, FileBox, Loader2, Upload, X, AlertTriangle, Settings, CheckCircle2 } from 'lucide-react';
 
-import type { Modification } from '../../api/api';
+import type { Modification, ThreeMFParseResult } from '../../api/api';
 import type { SlicerJobPhase } from './useSlicerJob';
 import { useSlicerJob } from './useSlicerJob';
 
@@ -9,22 +9,28 @@ interface SlicerJobModalProps {
     isOpen: boolean;
     onClose: () => void;
     modifications?: Modification[];
-    presetData?: Record<string, unknown>;
+    existingParseResult?: ThreeMFParseResult;
+    // Triggered when 3MF is parsed so the parent chat can append the preset context
+    onParsed: (result: ThreeMFParseResult) => void;
 }
 
 const phaseLabels: Record<SlicerJobPhase, string> = {
-    idle: '选择3MF文件',
-    uploading: '上传中...',
-    processing: '正在处理...',
-    done: '处理完成！',
+    idle: '上传3MF提取预设',
+    parsing: '解析预设中...',
+    wait_for_ai: '等待AI优化...',
+    modifying: '应用预设修改中...',
+    done_repack: '内部修改完成！',
+    done_cli: '等待Client Agent打包...',
     error: '处理失败',
 };
 
 const phaseDescriptions: Record<SlicerJobPhase, string> = {
-    idle: '上传一个3MF文件，引擎将应用AI参数修改并导出优化后的3MF文件',
-    uploading: '正在上传文件到服务器...',
-    processing: '引擎正在应用预设修改、自动摆放及导出...',
-    done: '已成功生成带参数修改的3MF文件，可直接在拓竹切片软件中打开',
+    idle: '上传你的3MF项目文件，系统将自动解析其中的打印参数，以便AI深入优化。',
+    parsing: '正在提取3MF中的预设参数摘要 (project_settings.config)...',
+    wait_for_ai: '解析完成！预设信息已发送给AI，请在聊天中等待AI给出参数修改建议，随后将自动应用到3MF中。',
+    modifying: '正在将AI的修改写入3MF...',
+    done_repack: '已成功将修改后的预设打包进3MF中，可直接在Bambu Studio中打开查看。',
+    done_cli: '客户端代理正在后台调用BambuStudio进行切片级打包...',
     error: '',
 };
 
@@ -32,10 +38,35 @@ export const SlicerJobModal: React.FC<SlicerJobModalProps> = ({
     isOpen,
     onClose,
     modifications,
-    presetData,
+    existingParseResult,
+    onParsed,
 }) => {
-    const { phase, error, submitJob, downloadUrl, reset } = useSlicerJob();
+    const { 
+        phase, 
+        parseResult, 
+        error, 
+        uploadAndParse, 
+        setExistingJob,
+        applyModifications, 
+        downloadUrl, 
+        reset 
+    } = useSlicerJob();
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Apply modifications automatically if we are in wait_for_ai and modifications arrive
+    React.useEffect(() => {
+        if (phase === 'wait_for_ai' && modifications && modifications.length > 0) {
+            void applyModifications(modifications);
+        }
+    }, [phase, modifications, applyModifications]);
+
+    // Use existing job if provided
+    React.useEffect(() => {
+        if (isOpen && existingParseResult && phase === 'idle') {
+            setExistingJob(existingParseResult);
+        }
+    }, [isOpen, existingParseResult, phase, setExistingJob]);
 
     if (!isOpen) return null;
 
@@ -43,7 +74,14 @@ export const SlicerJobModal: React.FC<SlicerJobModalProps> = ({
         const file = event.target.files?.[0];
         if (!file) return;
         event.target.value = '';
-        await submitJob(file, modifications, presetData);
+        const res = await uploadAndParse(file);
+        if (res) {
+            onParsed(res);
+            // Auto close after 3 seconds so user can see AI generating mods in background
+            setTimeout(() => {
+                onClose();
+            }, 3000);
+        }
     };
 
     const handleClose = () => {
@@ -62,10 +100,10 @@ export const SlicerJobModal: React.FC<SlicerJobModalProps> = ({
                         </div>
                         <div>
                             <h3 className="text-base font-bold text-text-light dark:text-text-dark">
-                                生成3MF文件
+                                3MF 预设优化
                             </h3>
                             <p className="text-xs text-text-light/50 dark:text-text-dark/50">
-                                Headless Slicer Engine
+                                Parsing & Repacking
                             </p>
                         </div>
                     </div>
@@ -87,13 +125,13 @@ export const SlicerJobModal: React.FC<SlicerJobModalProps> = ({
                             {phase === 'error' ? error : phaseDescriptions[phase]}
                         </p>
 
-                        {/* Idle — file upload */}
+                        {/* Step 1: Upload 3MF */}
                         {phase === 'idle' && (
                             <>
                                 <input
                                     ref={fileInputRef}
                                     type="file"
-                                    accept=".3mf,.stl,.step,.stp,.obj"
+                                    accept=".3mf"
                                     className="hidden"
                                     onChange={(e) => void handleFileSelect(e)}
                                 />
@@ -104,17 +142,11 @@ export const SlicerJobModal: React.FC<SlicerJobModalProps> = ({
                                     <Upload size={24} />
                                     <span className="text-sm font-bold">选择3MF文件</span>
                                 </button>
-
-                                {modifications && modifications.length > 0 && (
-                                    <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-2 text-xs text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                        将应用 {modifications.length} 项AI参数修改
-                                    </div>
-                                )}
                             </>
                         )}
 
-                        {/* Processing spinner */}
-                        {(phase === 'uploading' || phase === 'processing') && (
+                        {/* Processing spinner UI for async wait */}
+                        {(phase === 'parsing' || phase === 'modifying') && (
                             <div className="flex flex-col items-center gap-4">
                                 <div className="relative">
                                     <div className="absolute inset-[-4px] animate-spin rounded-full border-2 border-cta/20 border-t-cta" />
@@ -123,9 +155,34 @@ export const SlicerJobModal: React.FC<SlicerJobModalProps> = ({
                             </div>
                         )}
 
-                        {/* Done — download */}
-                        {phase === 'done' && downloadUrl && (
-                            <div className="flex flex-col items-center gap-4">
+                        {/* Step 2: Parsed successfully, showing summary and wait for AI */}
+                        {phase === 'wait_for_ai' && parseResult && (
+                            <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
+                                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+                                    <CheckCircle2 size={32} className="text-emerald-500" />
+                                </div>
+                                <div className="w-full text-left rounded-xl bg-secondary/5 p-4 mt-2">
+                                    <div className="text-xs font-semibold text-text-light/70 dark:text-text-dark/70 mb-2 flex items-center gap-2">
+                                        <Settings size={14} /> 预设信息摘要
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                        <div className="text-text-light/60">打印机:</div>
+                                        <div className="font-medium truncate">{parseResult.printer_model || parseResult.printer_settings_id}</div>
+                                        <div className="text-text-light/60">预设配置:</div>
+                                        <div className="font-medium truncate">{parseResult.print_settings_id}</div>
+                                        <div className="text-text-light/60">层高:</div>
+                                        <div className="font-medium truncate">{parseResult.summary['layer_height'] ?? 'N/A'} mm</div>
+                                        <div className="text-text-light/60">模型数量:</div>
+                                        <div className="font-medium truncate">{parseResult.objects.length} 个</div>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-cta/80 mt-2 animate-pulse font-medium">窗口将自动关闭，转交AI处理...</p>
+                            </div>
+                        )}
+
+                        {/* Step 3: Done and Download */}
+                        {phase === 'done_repack' && downloadUrl && (
+                            <div className="flex flex-col items-center gap-4 animate-in slide-in-from-bottom flex duration-500">
                                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-cta/15">
                                     <Download size={28} className="text-cta" />
                                 </div>
@@ -134,13 +191,13 @@ export const SlicerJobModal: React.FC<SlicerJobModalProps> = ({
                                     className="inline-flex items-center gap-2 rounded-2xl bg-cta px-6 py-3 text-sm font-bold text-white shadow-lg shadow-cta/20 transition-all hover:-translate-y-0.5 hover:bg-[#1fb457]"
                                 >
                                     <Download size={16} />
-                                    下载3MF文件
+                                    下载修改后的 3MF
                                 </a>
                                 <button
                                     onClick={() => reset()}
                                     className="text-xs text-text-light/40 transition-colors hover:text-cta"
                                 >
-                                    重新处理
+                                    处理新文件
                                 </button>
                             </div>
                         )}

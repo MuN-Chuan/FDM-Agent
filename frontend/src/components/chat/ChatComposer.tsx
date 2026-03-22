@@ -1,7 +1,8 @@
 import React from 'react';
-import { AlertTriangle, FileText, Image as ImageIcon, Loader2, Package, Paperclip, Scan, Send, Sparkles, X } from 'lucide-react';
+import { AlertTriangle, FileBox, FileText, Image as ImageIcon, Loader2, Package, Paperclip, Scan, Send, Sparkles, X } from 'lucide-react';
 
 import { useI18n } from '../../i18n/I18nProvider';
+import type { ThreeMFParseResult } from '../../api/api';
 
 interface PendingImage {
     base64: string;
@@ -32,8 +33,11 @@ interface ChatComposerProps {
     onOpenSettings: () => void;
     onOpenPresetModal: () => void;
     onOpenDefectRecognition: () => void;
+    onOpenSlicerModal: () => void;
     onRemovePendingFile: (index: number) => void;
     onClearPreset: () => void;
+    pendingSlicerResult: ThreeMFParseResult | null;
+    onClearSlicerResult: () => void;
 }
 
 export const ChatComposer: React.FC<ChatComposerProps> = ({
@@ -54,8 +58,11 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     onOpenSettings,
     onOpenPresetModal,
     onOpenDefectRecognition,
+    onOpenSlicerModal,
     onRemovePendingFile,
     onClearPreset,
+    pendingSlicerResult,
+    onClearSlicerResult,
 }) => {
     const { t } = useI18n();
 
@@ -63,7 +70,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         <div className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-6 sm:px-6">
             <div className="mx-auto max-w-4xl">
                 <div className="pointer-events-auto flex flex-col rounded-[32px] border border-secondary/20 bg-white shadow-xl transition-all focus-within:border-cta/40 focus-within:ring-4 focus-within:ring-cta/10 dark:bg-secondary/10">
-                    {(pendingImage || presetFileName || pendingFiles.length > 0) && (
+                    {(pendingImage || presetFileName || pendingFiles.length > 0 || pendingSlicerResult) && (
                         <div className="flex flex-wrap gap-3 px-4 pt-4">
                             {pendingImage && (
                                 <div className="overflow-hidden rounded-xl border border-secondary/20 shadow-sm">
@@ -101,6 +108,15 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                                     </button>
                                 </div>
                             ))}
+                            {pendingSlicerResult && (
+                                <div className="flex items-center gap-2 rounded-xl border border-cta/20 bg-cta/10 px-3 py-2 text-xs text-cta shadow-sm">
+                                    <FileBox size={16} />
+                                    <span className="max-w-[220px] truncate font-medium">3MF: {pendingSlicerResult.printer_model || 'Project'}</span>
+                                    <button onClick={onClearSlicerResult} className="rounded p-1 hover:bg-cta/10" title="移除 3MF 文件">
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -159,6 +175,14 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                                 <span>{t('chat.defectRecognition')}</span>
                             </button>
                             <button
+                                onClick={onOpenSlicerModal}
+                                className="flex items-center gap-2 rounded-full border border-cta/20 bg-cta/5 px-3 py-2 text-sm font-medium text-cta transition-all hover:bg-cta/10"
+                                title="上传 3MF 优化预设"
+                            >
+                                <FileBox size={18} />
+                                <span>3MF 预设优化</span>
+                            </button>
+                            <button
                                 onClick={onOpenSettings}
                                 className="flex items-center gap-2 rounded-full border border-cta/20 bg-cta/10 px-3 py-1.5 text-[12px] font-bold text-cta shadow-sm transition-all hover:bg-cta/15"
                             >
@@ -175,9 +199,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                             )}
                             <button
                                 onClick={() => void onSubmit()}
-                                disabled={isStreaming || (!input.trim() && !pendingImage && pendingFiles.length === 0) || !!presetValidationError}
+                                disabled={isStreaming || (!input.trim() && !pendingImage && pendingFiles.length === 0 && !pendingSlicerResult) || !!presetValidationError}
                                 className={`rounded-full p-2.5 shadow-md transition-all ${
-                                    isStreaming || (!input.trim() && !pendingImage && pendingFiles.length === 0) || !!presetValidationError
+                                    isStreaming || (!input.trim() && !pendingImage && pendingFiles.length === 0 && !pendingSlicerResult) || !!presetValidationError
                                         ? 'cursor-not-allowed border border-secondary/10 bg-secondary/20 text-text-light/20'
                                         : 'bg-cta text-white shadow-lg shadow-cta/20 hover:scale-105 hover:bg-cta active:scale-95'
                                 }`}

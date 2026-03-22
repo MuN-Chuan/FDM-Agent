@@ -6,6 +6,7 @@ from app.models.diagnosis import ApiSettings, Modification
 class ChatMessage(BaseModel):
     role: str = Field(..., description="'user' or 'assistant'")
     content: str = Field(..., description="Text content of the message")
+    slicer_result: Optional[Dict[str, Any]] = Field(None, description="Optional 3MF parsed settings")
 
 
 class ChatRequest(BaseModel):

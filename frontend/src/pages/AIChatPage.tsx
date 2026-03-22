@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import JSZip from 'jszip';
 
 import { api } from '../api/api';
-import type { ChatFeedbackPayload, ChatMessage, FeedbackBinaryAsset, FeedbackImageAsset, Modification } from '../api/api';
+import type { ChatFeedbackPayload, ChatMessage, FeedbackBinaryAsset, FeedbackImageAsset, Modification, ThreeMFParseResult } from '../api/api';
 import { loadApiSettings } from '../api/apiSettings';
 import { ChatComposer } from '../components/chat/ChatComposer';
 import { ChatMessageList } from '../components/chat/ChatMessageList';
@@ -13,6 +13,8 @@ import { DefectRecognitionModal } from '../features/diagnosis/DefectRecognitionM
 import { PresetSelectionModal } from '../features/diagnosis/PresetSelectionModal';
 import { usePresetParser } from '../features/diagnosis/usePresetParser';
 import { SlicerJobModal } from '../features/slicer/SlicerJobModal';
+import { useClientAgent } from '../features/slicer/useClientAgent';
+import { ClientAgentIndicator } from '../features/slicer/ClientAgentIndicator';
 import { useI18n } from '../i18n/I18nProvider';
 
 interface AIChatPageProps {
@@ -62,6 +64,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
         setInput,
         pendingImage,
         setPendingImage,
+        pendingSlicerResult,
+        setPendingSlicerResult,
         presetFileName,
         setPresetFileName,
         modifications,
@@ -87,6 +91,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
     const [isDefectModalOpen, setIsDefectModalOpen] = useState(false);
     const [isSlicerModalOpen, setIsSlicerModalOpen] = useState(false);
     const [slicerModifications, setSlicerModifications] = useState<Modification[] | undefined>(undefined);
+    const [existingSlicerResult, setExistingSlicerResult] = useState<ThreeMFParseResult | undefined>();
+
 
     const imageInputRef = useRef<HTMLInputElement>(null);
     const presetInputRef = useRef<HTMLInputElement>(null);
@@ -182,6 +188,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
 
         const nextFiles: PendingFile[] = [];
         for (const file of files) {
+            if (file.name.toLowerCase().endsWith('.3mf')) {
+                alert('请使用聊天框下方的 "3MF 预设优化" 专属按钮上传 3MF 文件。');
+                continue;
+            }
             try {
                 const text = await file.text();
                 nextFiles.push({
@@ -280,7 +290,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             if (isStreaming || presetValidationError) {
                 return;
             }
-            if (!text.trim() && !pendingImage && activeFiles.length === 0) {
+            if (!text.trim() && !pendingImage && activeFiles.length === 0 && !pendingSlicerResult) {
                 return;
             }
 
@@ -289,6 +299,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                 alert(t('chat.modelNoVision', { model: apiSettings.model_name }));
                 return;
             }
+            const slicerResultToSend = pendingSlicerResult;
 
             const internalContextText =
                 activeFiles.length > 0
@@ -313,7 +324,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                 {
                     id: `user-${Date.now()}`,
                     role: 'user',
-                    content: text,
+                    content: text, // ONLY user text here (or empty if none)
+                    slicerResult: slicerResultToSend ?? undefined,
                     imagePreviewUrl: pendingImage?.previewUrl,
                     imageAsset: pendingImage
                         ? {
@@ -341,6 +353,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
 
             const imageToSend = pendingImage;
             setPendingImage(null);
+            setPendingSlicerResult(null); // Clear pending slicer result after sending
             setPresetFileName(null);
             setPendingPresetAsset(null);
             setPendingFiles([]);
@@ -348,8 +361,16 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             const history: ChatMessage[] = [
                 ...currentHistory
                     .filter((message) => !message.isStreaming)
-                    .map((message) => ({ role: message.role, content: message.content })),
-                { role: 'user', content: finalContentToSend },
+                    .map((message) => ({
+                        role: message.role,
+                        content: message.content,
+                        slicer_result: message.slicerResult,
+                    })),
+                {
+                    role: 'user',
+                    content: finalContentToSend,
+                    slicer_result: slicerResultToSend ?? undefined,
+                },
             ];
 
             const presetData = bundle
@@ -457,6 +478,8 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             onSessionChange,
             pendingFiles,
             pendingImage,
+            pendingSlicerResult,
+            setPendingSlicerResult,
             presetFileName,
             pendingPresetAsset,
             presetValidationError,
@@ -610,6 +633,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
         [messages, sendMessage],
     );
 
+
+    const { agentStatus, capabilities, connect: connectAgent, disconnect: disconnectAgent } = useClientAgent();
+
     return (
         <div className="-m-8 relative flex h-[calc(100vh-64px)] overflow-hidden bg-background-light dark:bg-background-dark">
             <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageFile} />
@@ -630,12 +656,22 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             />
 
             <div className="relative flex min-w-0 flex-1 flex-col">
+                {/* Agent status bar */}
+                <div className="flex items-center justify-end px-4 py-1 border-b border-secondary/10">
+                    <ClientAgentIndicator
+                        status={agentStatus}
+                        printerHost={capabilities?.printer_host}
+                        onConnect={connectAgent}
+                        onDisconnect={disconnectAgent}
+                    />
+                </div>
                 <ChatMessageList
                     messages={messages}
                     hasPresetBundle={!!bundle}
                     onDownloadPresets={handleDownloadPresets}
-                    onGenerate3MF={(mods) => {
+                    onGenerate3MF={(mods, existingResult) => {
                         setSlicerModifications(mods ?? modifications.length > 0 ? mods ?? modifications : undefined);
+                        setExistingSlicerResult(existingResult);
                         setIsSlicerModalOpen(true);
                     }}
                     onEditMessage={handleEditMessage}
@@ -662,6 +698,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                     onOpenSettings={() => setIsSettingsOpen(true)}
                     onOpenPresetModal={() => setIsPresetModalOpen(true)}
                     onOpenDefectRecognition={() => setIsDefectModalOpen(true)}
+                    onOpenSlicerModal={() => setIsSlicerModalOpen(true)}
+                    pendingSlicerResult={pendingSlicerResult}
+                    onClearSlicerResult={() => setPendingSlicerResult(null)}
                     onRemovePendingFile={(index) => {
                         setPendingFiles((current) => current.filter((_, fileIndex) => fileIndex !== index));
                     }}
@@ -690,13 +729,16 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             />
             <SlicerJobModal
                 isOpen={isSlicerModalOpen}
-                onClose={() => setIsSlicerModalOpen(false)}
+                onClose={() => {
+                    setIsSlicerModalOpen(false);
+                    setExistingSlicerResult(undefined);
+                }}
                 modifications={slicerModifications}
-                presetData={bundle ? {
-                    printer: selection.printer?.data || {},
-                    process: selection.process?.data || {},
-                    filament: selection.filaments.map((f) => f.data),
-                } : undefined}
+                existingParseResult={existingSlicerResult}
+                onParsed={(parseResult) => {
+                    // Just stage the result, don't auto-send
+                    setPendingSlicerResult(parseResult);
+                }}
             />
         </div>
     );

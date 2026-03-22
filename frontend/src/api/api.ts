@@ -15,10 +15,40 @@ export interface DiagnosisRequest {
     api_settings?: ApiSettings;
 }
 
+// ─── 3MF Workflow Types ─────────────────────────────────────────
+
+export interface ThreeMFParseResult {
+    job_id: string;
+    printer_settings_id: string;
+    print_settings_id: string;
+    filament_settings_id: string;
+    printer_model: string;
+    summary: Record<string, any>;
+    full_settings: Record<string, any>;
+    objects: Array<{ id: string; name: string }>;
+    plates: Array<{ id: string }>;
+}
+
+export interface ThreeMFModifyRequest {
+    job_id: string;
+    modifications: Modification[];
+    repack_only?: boolean;
+}
+
+export interface ThreeMFModifyResponse {
+    job_id: string;
+    status: 'done' | 'pending_cli_repack';
+    download_url?: string;
+    message?: string;
+    applied: string[];
+    skipped: string[];
+}
+
 export interface ChatMessage {
     role: 'user' | 'assistant';
     content: string;
     imageUrl?: string;
+    slicer_result?: any;
 }
 
 export interface ChatRequest {
@@ -597,11 +627,82 @@ export const api = {
         return `${BASE_URL}/api/slicer/jobs/${jobId}/download`;
     },
 
+    getSlicer3mfDownloadUrl(jobId: string): string {
+        return `${BASE_URL}/api/slicer/download-3mf/${jobId}`;
+    },
+
     async cleanupSlicerJob(jobId: string): Promise<void> {
         await fetch(`${BASE_URL}/api/slicer/jobs/${jobId}`, {
             ...defaultFetchOptions,
             method: 'DELETE',
         });
+    },
+
+    // ─── 3MF Workflow Methods ──────────────────────────────────────
+
+    async parse3MF(file: File): Promise<ThreeMFParseResult> {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch(`${BASE_URL}/api/slicer/parse-3mf`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Failed to parse 3MF: ${response.statusText}`);
+        }
+
+        return response.json();
+    },
+
+    async modify3MF(request: ThreeMFModifyRequest): Promise<ThreeMFModifyResponse> {
+        const response = await fetch(`${BASE_URL}/api/slicer/modify-3mf`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+            headers: {
+                ...defaultFetchOptions.headers,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                job_id: request.job_id,
+                modifications: request.modifications,
+                repack_only: request.repack_only ?? true
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Failed to modify 3MF: ${response.statusText}`);
+        }
+
+        return response.json();
+    },
+
+    getSlicerAgentOriginalUrl(jobId: string): string {
+        return `${BASE_URL}/api/slicer/agent/${jobId}/original`;
+    },
+
+    getSlicerAgentSettingsUrl(jobId: string): string {
+        return `${BASE_URL}/api/slicer/agent/${jobId}/settings`;
+    },
+
+    async uploadSlicerAgentResult(jobId: string, file: File): Promise<void> {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch(`${BASE_URL}/api/slicer/agent/${jobId}/upload`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Failed to upload slicer agent result: ${response.statusText}`);
+        }
     },
 };
 

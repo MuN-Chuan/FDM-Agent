@@ -6,6 +6,7 @@ import type {
     MessageFeedbackRecord,
     Modification,
     SessionMetadata,
+    ThreeMFParseResult,
 } from '../../api/api';
 import type { ParsedBundle, PresetSelection } from '../diagnosis/presetTypes';
 
@@ -16,6 +17,7 @@ export interface ChatUIMessage {
     imageUrl?: string;
     attachedFiles?: { name: string; size: number }[];
     attachedFilesDetailed?: FeedbackAttachmentAsset[];
+    slicerResult?: ThreeMFParseResult;
     thought?: string;
     modifications?: Modification[];
     isStreaming?: boolean;
