@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { Download, FileBox, Loader2, Upload, X, AlertTriangle, Settings, CheckCircle2 } from 'lucide-react';
 
 import type { Modification, ThreeMFParseResult } from '../../api/api';
+import { useClientAgent } from './useClientAgent';
 import type { SlicerJobPhase } from './useSlicerJob';
 import { useSlicerJob } from './useSlicerJob';
 
@@ -10,6 +11,7 @@ interface SlicerJobModalProps {
     onClose: () => void;
     modifications?: Modification[];
     existingParseResult?: ThreeMFParseResult;
+    autoApplyModifications?: boolean;
     // Triggered when 3MF is parsed so the parent chat can append the preset context
     onParsed: (result: ThreeMFParseResult) => void;
 }
@@ -19,8 +21,10 @@ const phaseLabels: Record<SlicerJobPhase, string> = {
     parsing: '解析预设中...',
     wait_for_ai: '等待AI优化...',
     modifying: '应用预设修改中...',
+    waiting_agent: '等待本地 Agent 接管...',
+    running_agent: '切片软件导出中...',
     done_repack: '内部修改完成！',
-    done_cli: '等待Client Agent打包...',
+    done_cli: '切片软件导出完成！',
     error: '处理失败',
 };
 
@@ -28,9 +32,11 @@ const phaseDescriptions: Record<SlicerJobPhase, string> = {
     idle: '上传你的3MF项目文件，系统将自动解析其中的打印参数，以便AI深入优化。',
     parsing: '正在提取3MF中的预设参数摘要 (project_settings.config)...',
     wait_for_ai: '解析完成！预设信息已发送给AI，请在聊天中等待AI给出参数修改建议，随后将自动应用到3MF中。',
-    modifying: '正在将AI的修改写入3MF...',
+    modifying: '正在准备切片软件需要的覆盖 preset...',
+    waiting_agent: '需要本地 Client Agent 连接后，才能调用本机切片软件 CLI 导出兼容的 3MF。',
+    running_agent: '本地 Client Agent 正在调用 Bambu Studio CLI，按真实切片软件流程导出 3MF。',
     done_repack: '已成功将修改后的预设打包进3MF中，可直接在Bambu Studio中打开查看。',
-    done_cli: '客户端代理正在后台调用BambuStudio进行切片级打包...',
+    done_cli: '切片软件已完成导出，可直接下载并在 Bambu Studio 中打开。',
     error: '',
 };
 
@@ -39,8 +45,10 @@ export const SlicerJobModal: React.FC<SlicerJobModalProps> = ({
     onClose,
     modifications,
     existingParseResult,
+    autoApplyModifications = false,
     onParsed,
 }) => {
+    const { agentStatus, lastMessage, bridge } = useClientAgent();
     const { 
         phase, 
         parseResult, 
@@ -49,17 +57,22 @@ export const SlicerJobModal: React.FC<SlicerJobModalProps> = ({
         setExistingJob,
         applyModifications, 
         downloadUrl, 
+        retryAgentExport,
         reset 
-    } = useSlicerJob();
+    } = useSlicerJob({
+        agentConnected: agentStatus === 'connected',
+        agentMessage: lastMessage,
+        startAgentExport: (jobId) => bridge.export3MFViaCli(jobId),
+    });
     
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Apply modifications automatically if we are in wait_for_ai and modifications arrive
     React.useEffect(() => {
-        if (phase === 'wait_for_ai' && modifications && modifications.length > 0) {
+        if (autoApplyModifications && phase === 'wait_for_ai' && modifications && modifications.length > 0) {
             void applyModifications(modifications);
         }
-    }, [phase, modifications, applyModifications]);
+    }, [autoApplyModifications, phase, modifications, applyModifications]);
 
     // Use existing job if provided
     React.useEffect(() => {
@@ -103,7 +116,7 @@ export const SlicerJobModal: React.FC<SlicerJobModalProps> = ({
                                 3MF 预设优化
                             </h3>
                             <p className="text-xs text-text-light/50 dark:text-text-dark/50">
-                                Parsing & Repacking
+                                Parse & Native CLI Export
                             </p>
                         </div>
                     </div>
@@ -146,7 +159,7 @@ export const SlicerJobModal: React.FC<SlicerJobModalProps> = ({
                         )}
 
                         {/* Processing spinner UI for async wait */}
-                        {(phase === 'parsing' || phase === 'modifying') && (
+                        {(phase === 'parsing' || phase === 'modifying' || phase === 'running_agent') && (
                             <div className="flex flex-col items-center gap-4">
                                 <div className="relative">
                                     <div className="absolute inset-[-4px] animate-spin rounded-full border-2 border-cta/20 border-t-cta" />
@@ -181,7 +194,24 @@ export const SlicerJobModal: React.FC<SlicerJobModalProps> = ({
                         )}
 
                         {/* Step 3: Done and Download */}
-                        {phase === 'done_repack' && downloadUrl && (
+                        {phase === 'waiting_agent' && (
+                            <div className="flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-300">
+                                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+                                    <AlertTriangle size={28} className="text-amber-500" />
+                                </div>
+                                <div className="text-xs text-text-light/60 dark:text-text-dark/60">
+                                    当前 Agent 状态：{agentStatus === 'connected' ? '已连接' : '未连接'}
+                                </div>
+                                <button
+                                    onClick={() => retryAgentExport()}
+                                    className="inline-flex items-center gap-2 rounded-2xl bg-cta px-6 py-3 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5"
+                                >
+                                    连接后继续导出
+                                </button>
+                            </div>
+                        )}
+
+                        {(phase === 'done_repack' || phase === 'done_cli') && downloadUrl && (
                             <div className="flex flex-col items-center gap-4 animate-in slide-in-from-bottom flex duration-500">
                                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-cta/15">
                                     <Download size={28} className="text-cta" />

@@ -1,0 +1,12 @@
+{
+    "type": "process",
+    "name": "FDM-AI Process Override thin-wal",
+    "from": "user",
+    "instantiation": "true",
+    "inherits": "0.20mm Standard @BBL A1M",
+    "setting_id": "FDM-AI-P-thin-wal",
+    "compatible_printers": [
+        "Bambu Lab A1 mini 0.4 nozzle"
+    ],
+    "detect_thin_wall": "1"
+}

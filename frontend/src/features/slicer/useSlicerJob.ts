@@ -1,9 +1,24 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { Modification, ThreeMFParseResult, ThreeMFModifyResponse } from '../../api/api';
-import { api } from '../../api/api';
+import { api, type Modification, type ThreeMFModifyResponse, type ThreeMFParseResult } from '../../api/api';
+import type { AgentMessage } from './ClientAgentBridge';
 
-export type SlicerJobPhase = 'idle' | 'parsing' | 'wait_for_ai' | 'modifying' | 'done_repack' | 'done_cli' | 'error';
+export type SlicerJobPhase =
+    | 'idle'
+    | 'parsing'
+    | 'wait_for_ai'
+    | 'modifying'
+    | 'waiting_agent'
+    | 'running_agent'
+    | 'done_repack'
+    | 'done_cli'
+    | 'error';
+
+interface UseSlicerJobOptions {
+    agentConnected: boolean;
+    agentMessage: AgentMessage | null;
+    startAgentExport: (jobId: string) => boolean;
+}
 
 interface UseSlicerJobReturn {
     phase: SlicerJobPhase;
@@ -12,19 +27,23 @@ interface UseSlicerJobReturn {
     error: string | null;
     uploadAndParse: (file: File) => Promise<ThreeMFParseResult | undefined>;
     setExistingJob: (result: ThreeMFParseResult) => void;
-    // Step 2: Apply AI modifications after they are generated
     applyModifications: (modifications: Modification[]) => Promise<void>;
     downloadUrl: string | null;
+    retryAgentExport: () => void;
     reset: () => void;
 }
 
-export function useSlicerJob(): UseSlicerJobReturn {
+export function useSlicerJob({
+    agentConnected,
+    agentMessage,
+    startAgentExport,
+}: UseSlicerJobOptions): UseSlicerJobReturn {
     const [phase, setPhase] = useState<SlicerJobPhase>('idle');
     const [parseResult, setParseResult] = useState<ThreeMFParseResult | null>(null);
     const [modifyResult, setModifyResult] = useState<ThreeMFModifyResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
-    
-    // Track job ID to allow cleanup or subsequent modification
+    const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+
     const jobIdRef = useRef<string | null>(null);
 
     const uploadAndParse = useCallback(async (file: File) => {
@@ -32,6 +51,7 @@ export function useSlicerJob(): UseSlicerJobReturn {
         setError(null);
         setParseResult(null);
         setModifyResult(null);
+        setDownloadUrl(null);
 
         try {
             const result = await api.parse3MF(file);
@@ -50,7 +70,22 @@ export function useSlicerJob(): UseSlicerJobReturn {
         jobIdRef.current = result.job_id;
         setParseResult(result);
         setPhase('wait_for_ai');
+        setError(null);
+        setDownloadUrl(null);
     }, []);
+
+    const retryAgentExport = useCallback(() => {
+        if (!jobIdRef.current) {
+            return;
+        }
+
+        if (startAgentExport(jobIdRef.current)) {
+            setError(null);
+            setPhase('running_agent');
+        } else {
+            setPhase('waiting_agent');
+        }
+    }, [startAgentExport]);
 
     const applyModifications = useCallback(async (modifications: Modification[]) => {
         if (!jobIdRef.current) {
@@ -61,51 +96,98 @@ export function useSlicerJob(): UseSlicerJobReturn {
 
         setPhase('modifying');
         setError(null);
+        setDownloadUrl(null);
 
         try {
             const result = await api.modify3MF({
                 job_id: jobIdRef.current,
                 modifications,
-                repack_only: true // Inline python repack by default for now
+                repack_only: false,
             });
-            
+
             setModifyResult(result);
-            
+
             if (result.status === 'done') {
+                setDownloadUrl(api.getSlicer3mfDownloadUrl(jobIdRef.current));
                 setPhase('done_repack');
-            } else if (result.status === 'pending_cli_repack') {
-                setPhase('done_cli'); // Will be picked up by ClientAgentBridge later
+                return;
+            }
+
+            if (result.status === 'pending_agent_cli') {
+                if (startAgentExport(jobIdRef.current)) {
+                    setPhase('running_agent');
+                } else {
+                    setPhase('waiting_agent');
+                }
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
             setPhase('error');
         }
-    }, []);
+    }, [startAgentExport]);
 
-    const downloadUrl = (phase === 'done_repack' && jobIdRef.current)
-        ? api.getSlicer3mfDownloadUrl(jobIdRef.current)
-        : null;
+    useEffect(() => {
+        if (
+            phase === 'waiting_agent' &&
+            agentConnected &&
+            jobIdRef.current &&
+            modifyResult?.status === 'pending_agent_cli'
+        ) {
+            if (startAgentExport(jobIdRef.current)) {
+                setError(null);
+                setPhase('running_agent');
+            }
+        }
+    }, [agentConnected, modifyResult, phase, startAgentExport]);
+
+    useEffect(() => {
+        const jobId = jobIdRef.current;
+        if (!jobId || !agentMessage || agentMessage.job_id !== jobId) {
+            return;
+        }
+
+        if (agentMessage.cmd && !['export_3mf_cli', 'repack_3mf'].includes(agentMessage.cmd)) {
+            return;
+        }
+
+        if (agentMessage.type === 'progress') {
+            setError(null);
+            setPhase('running_agent');
+            return;
+        }
+
+        if (agentMessage.type === 'done') {
+            setError(null);
+            setDownloadUrl(agentMessage.download_url ?? api.getSlicer3mfDownloadUrl(jobId));
+            setPhase('done_cli');
+            return;
+        }
+
+        if (agentMessage.type === 'error') {
+            setError(agentMessage.message ?? 'Client Agent execution failed.');
+            setPhase('error');
+        }
+    }, [agentMessage]);
 
     const reset = useCallback(() => {
-        if (jobIdRef.current) {
-            // Optional cleanup if backend supports it
-            jobIdRef.current = null;
-        }
+        jobIdRef.current = null;
         setPhase('idle');
         setParseResult(null);
         setModifyResult(null);
+        setDownloadUrl(null);
         setError(null);
     }, []);
 
-    return { 
-        phase, 
-        parseResult, 
-        modifyResult, 
-        error, 
-        uploadAndParse, 
+    return {
+        phase,
+        parseResult,
+        modifyResult,
+        error,
+        uploadAndParse,
         setExistingJob,
-        applyModifications, 
-        downloadUrl, 
-        reset 
+        applyModifications,
+        downloadUrl,
+        retryAgentExport,
+        reset,
     };
 }

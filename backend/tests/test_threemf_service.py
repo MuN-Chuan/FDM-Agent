@@ -13,7 +13,7 @@ import pytest
 from app.services import threemf_service
 
 # Path to the real test 3MF file
-TEST_3MF = Path(__file__).parent.parent.parent.parent / "test" / "test.3mf"
+TEST_3MF = Path(__file__).resolve().parents[2] / "test" / "test.3mf"
 
 
 @pytest.fixture
@@ -149,6 +149,115 @@ def test_repack_3mf_preserves_other_files(test_3mf_bytes):
     original_names = set(zipfile.ZipFile(io.BytesIO(test_3mf_bytes)).namelist())
     repacked_names = set(zipfile.ZipFile(io.BytesIO(repacked)).namelist())
     assert original_names == repacked_names
+
+
+def test_build_cli_override_payload_splits_presets_by_category(test_3mf_bytes):
+    settings = threemf_service.parse_3mf(test_3mf_bytes)
+    mods = [
+        {"name": "layer_height", "old": settings["layer_height"], "new": "0.16", "category": "process"},
+        {"name": "nozzle_temperature", "old": settings["nozzle_temperature"][0], "new": "230", "category": "filament"},
+    ]
+    modified = threemf_service.apply_modifications(settings, mods)
+
+    payload = threemf_service.build_cli_override_payload("job-12345678", settings, modified, mods)
+
+    assert payload["job_id"] == "job-12345678"
+    assert payload["process_preset"] is not None
+    assert payload["process_preset"]["type"] == "process"
+    assert payload["process_preset"]["name"] == settings["print_settings_id"]
+    assert payload["process_preset"]["inherits"] == settings["print_settings_id"]
+    assert payload["process_preset"]["layer_height"] == "0.16"
+    assert payload["process_preset"]["different_settings_to_system"][0] == "layer_height"
+    assert "setting_id" not in payload["process_preset"]
+    assert payload["machine_preset"] is None
+    assert len(payload["filament_presets"]) >= 1
+    assert payload["filament_presets"][0]["type"] == "filament"
+    assert payload["filament_presets"][0]["inherits"]
+    assert payload["filament_presets"][0]["nozzle_temperature"][0] == "230"
+
+
+def test_build_cli_override_payload_merges_existing_process_diff_markers(test_3mf_bytes):
+    settings = threemf_service.parse_3mf(test_3mf_bytes)
+    settings["different_settings_to_system"] = ["enable_support", "", ""]
+    mods = [{"name": "layer_height", "old": settings["layer_height"], "new": "0.16", "category": "process"}]
+    modified = threemf_service.apply_modifications(settings, mods)
+
+    payload = threemf_service.build_cli_override_payload("job-merge1234", settings, modified, mods)
+
+    assert payload["process_preset"] is not None
+    assert payload["process_preset"]["different_settings_to_system"] == [
+        "layer_height",
+        "enable_support",
+        "",
+    ]
+
+
+def test_build_cli_override_payload_omits_unknown_modifications(test_3mf_bytes):
+    settings = threemf_service.parse_3mf(test_3mf_bytes)
+    mods = [{"name": "nonexistent_parameter_xyz", "old": "1", "new": "2", "category": "process"}]
+    modified = threemf_service.apply_modifications(settings, mods)
+
+    payload = threemf_service.build_cli_override_payload("job-abcdef12", settings, modified, mods)
+
+    assert payload["machine_preset"] is None
+    assert payload["process_preset"] is None
+    assert payload["filament_presets"] == []
+
+
+def test_normalize_cli_export_3mf_removes_cli_only_inheritance_artifacts():
+    original_project = {
+        "print_settings_id": "0.20mm Standard @BBL A1M",
+        "different_settings_to_system": ["enable_arc_fitting", "", ""],
+        "enable_arc_fitting": "0",
+    }
+    exported_project = {
+        **original_project,
+        "inherits_group": ["0.20mm Standard @BBL A1M", "", ""],
+        "filament_map_2": ["1"],
+    }
+    original_model = """<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <plate>
+    <metadata key="thumbnail_file" value="Metadata/plate_1.png"/>
+  </plate>
+</config>
+"""
+    exported_model = """<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <plate>
+    <metadata key="gcode_file" value=""/>
+    <metadata key="thumbnail_file" value="Metadata/plate_1.png"/>
+  </plate>
+</config>
+"""
+
+    def build_3mf(project: dict, model_xml: str) -> bytes:
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr(
+                "Metadata/project_settings.config",
+                json.dumps(project, ensure_ascii=False, indent=4).replace("\n", "\r\n"),
+            )
+            zf.writestr("Metadata/model_settings.config", model_xml)
+            zf.writestr("3D/3dmodel.model", "<model/>")
+        return buf.getvalue()
+
+    normalized = threemf_service.normalize_cli_export_3mf(
+        build_3mf(original_project, original_model),
+        build_3mf(exported_project, exported_model),
+    )
+
+    with zipfile.ZipFile(io.BytesIO(normalized)) as zf:
+        normalized_project = json.loads(
+            zf.read("Metadata/project_settings.config").decode("utf-8")
+        )
+        normalized_model = zf.read("Metadata/model_settings.config").decode("utf-8")
+
+    assert "inherits_group" not in normalized_project
+    assert "filament_map_2" not in normalized_project
+    assert '"enable_arc_fitting": "0"' in json.dumps(normalized_project, ensure_ascii=False)
+    assert 'key="gcode_file"' not in normalized_model
+    assert 'key="thumbnail_file"' in normalized_model
 
 
 # ─── get_3mf_object_info ─────────────────────────────────────────

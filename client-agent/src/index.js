@@ -2,7 +2,7 @@
  * FDM-AI Client Agent — 主入口
  *
  * 运行在用户本机，通过 WebSocket 接受前端网页指令，
- * 调用本地 BambuStudio CLI 执行 3MF 重打包，
+ * 调用本地 BambuStudio CLI 执行 slicer-native 3MF 导出，
  * 调用 bambu-cli 控制打印机。
  *
  * 使用方法：
@@ -60,7 +60,7 @@ wss.on('connection', (ws, req) => {
     send(ws, {
         type: 'hello',
         version: '1.0.0',
-        capabilities: ['repack_3mf', 'print_start', 'print_pause', 'print_resume', 'print_stop', 'printer_status'],
+        capabilities: ['export_3mf_cli', 'repack_3mf', 'print_start', 'print_pause', 'print_resume', 'print_stop', 'printer_status'],
         config: {
             bambu_studio_available: fs.existsSync(config.bambu_studio_path),
             printer_host: config.printer?.host ?? null,
@@ -91,7 +91,7 @@ wss.on('connection', (ws, req) => {
             await handleCommand(cmd, params, push, config);
         } catch (err) {
             log('error', `Command "${cmd}" failed:`, err.message);
-            send(ws, { type: 'error', cmd, message: err.message });
+            send(ws, { type: 'error', cmd, job_id: params.job_id, message: err.message });
         }
     });
 

@@ -1,0 +1,30 @@
+{
+  "bbox_all": [
+    76.88194,
+    81.90114000000001,
+    115.87224,
+    98.09911000000001
+  ],
+  "bbox_objects": [
+    {
+      "area": 454.40240478515625,
+      "bbox": [
+        76.88194,
+        81.90114000000001,
+        115.87224,
+        98.09911000000001
+      ],
+      "id": 115,
+      "layer_height": 0.20000000298023224,
+      "name": "\u5c0f\u8239"
+    }
+  ],
+  "bed_type": "textured_plate",
+  "filament_colors": [],
+  "filament_ids": [],
+  "first_extruder": 0,
+  "first_layer_time": 120.04083251953125,
+  "is_seq_print": false,
+  "nozzle_diameter": 0.4000000059604645,
+  "version": 2
+}

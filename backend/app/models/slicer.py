@@ -86,9 +86,10 @@ class ThreeMFModifyRequest(BaseModel):
         description="AI json_modifications to apply to the 3MF presets"
     )
     repack_only: bool = Field(
-        True,
+        False,
         description=(
-            "If True, modify project_settings.config and repack inline (pure Python). "
-            "If False, the Client Agent is expected to call BambuStudio CLI for full repack."
+            "Deprecated fallback switch. If True, modify project_settings.config and repack inline "
+            "with Python ZIP logic. If False, the Client Agent is expected to call the local slicer "
+            "CLI so the slicer application exports the final 3MF."
         ),
     )

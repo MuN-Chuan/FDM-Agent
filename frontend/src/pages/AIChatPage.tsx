@@ -92,6 +92,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
     const [isSlicerModalOpen, setIsSlicerModalOpen] = useState(false);
     const [slicerModifications, setSlicerModifications] = useState<Modification[] | undefined>(undefined);
     const [existingSlicerResult, setExistingSlicerResult] = useState<ThreeMFParseResult | undefined>();
+    const [autoApplySlicerModifications, setAutoApplySlicerModifications] = useState(false);
 
 
     const imageInputRef = useRef<HTMLInputElement>(null);
@@ -670,8 +671,15 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                     hasPresetBundle={!!bundle}
                     onDownloadPresets={handleDownloadPresets}
                     onGenerate3MF={(mods, existingResult) => {
-                        setSlicerModifications(mods ?? modifications.length > 0 ? mods ?? modifications : undefined);
+                        const nextModifications =
+                            mods && mods.length > 0
+                                ? mods
+                                : modifications.length > 0
+                                    ? modifications
+                                    : undefined;
+                        setSlicerModifications(nextModifications);
                         setExistingSlicerResult(existingResult);
+                        setAutoApplySlicerModifications(true);
                         setIsSlicerModalOpen(true);
                     }}
                     onEditMessage={handleEditMessage}
@@ -698,7 +706,12 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                     onOpenSettings={() => setIsSettingsOpen(true)}
                     onOpenPresetModal={() => setIsPresetModalOpen(true)}
                     onOpenDefectRecognition={() => setIsDefectModalOpen(true)}
-                    onOpenSlicerModal={() => setIsSlicerModalOpen(true)}
+                    onOpenSlicerModal={() => {
+                        setSlicerModifications(undefined);
+                        setExistingSlicerResult(undefined);
+                        setAutoApplySlicerModifications(false);
+                        setIsSlicerModalOpen(true);
+                    }}
                     pendingSlicerResult={pendingSlicerResult}
                     onClearSlicerResult={() => setPendingSlicerResult(null)}
                     onRemovePendingFile={(index) => {
@@ -731,10 +744,13 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                 isOpen={isSlicerModalOpen}
                 onClose={() => {
                     setIsSlicerModalOpen(false);
+                    setSlicerModifications(undefined);
                     setExistingSlicerResult(undefined);
+                    setAutoApplySlicerModifications(false);
                 }}
                 modifications={slicerModifications}
                 existingParseResult={existingSlicerResult}
+                autoApplyModifications={autoApplySlicerModifications}
                 onParsed={(parseResult) => {
                     // Just stage the result, don't auto-send
                     setPendingSlicerResult(parseResult);

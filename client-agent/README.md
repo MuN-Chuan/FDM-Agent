@@ -1,30 +1,27 @@
 # FDM-AI Client Agent
 
-本地 Agent 运行在你的电脑上，通过 **WebSocket** 接收前端网页的指令，执行本机操作：
+本地 Agent 运行在用户电脑上，通过 WebSocket 接收前端指令，负责执行浏览器和云端都不适合直接做的本机操作。
+
+## 功能
 
 | 功能 | 工具 |
 |------|------|
-| 3MF 切片级重打包 | BambuStudio CLI |
-| 打印机控制（开始/暂停/停止/状态）| bambu-cli |
-| 推送状态通知到前端 | WebSocket |
+| 通过切片软件原生流程导出 3MF | Bambu Studio CLI |
+| 打印机控制（开始/暂停/停止/状态） | bambu-cli |
+| 实时进度回传到前端 | WebSocket |
 
 ## 快速启动
 
 ```bash
-# 1. 安装依赖
 cd client-agent
 npm install
-
-# 2. 配置（复制并编辑）
 cp config.example.json config.json
-
-# 3. 启动
 npm start
 ```
 
-默认监听端口：`ws://localhost:7890`
+默认监听：`ws://localhost:7890`
 
-## 配置文件 (config.json)
+## 配置文件
 
 ```json
 {
@@ -42,18 +39,27 @@ npm start
 
 ## 支持的命令
 
-前端通过 WebSocket 发送 JSON 消息：
+### 1. 本地 slicer CLI 导出 3MF
 
-### 3MF 重打包
 ```json
 {
-  "cmd": "repack_3mf",
+  "cmd": "export_3mf_cli",
   "job_id": "<server-job-id>",
   "output_name": "optimized.3mf"
 }
 ```
 
-### 打印控制
+兼容旧命令名：
+
+```json
+{
+  "cmd": "repack_3mf",
+  "job_id": "<server-job-id>"
+}
+```
+
+### 2. 打印控制
+
 ```json
 { "cmd": "print_start", "job_id": "<server-job-id>", "file_name": "optimized.3mf" }
 { "cmd": "print_pause" }
@@ -62,13 +68,22 @@ npm start
 { "cmd": "printer_status" }
 ```
 
-## Agent → 前端推送格式
+## Agent -> 前端消息
+
 ```json
 {
-  "type": "status" | "progress" | "done" | "error",
-  "cmd": "repack_3mf",
+  "type": "progress" | "done" | "error" | "hello" | "status",
+  "cmd": "export_3mf_cli",
   "job_id": "...",
   "message": "...",
-  "data": { ... }
+  "download_url": "...",
+  "data": {}
 }
 ```
+
+## 说明
+
+- 当前 3MF 主路径已经改为“切片软件原生导出”
+- Agent 会先探测本机 `Bambu Studio` 实际支持的 CLI 参数名，再按本机版本拼接命令
+- 旧的 ZIP 重打包不再是默认生产方案
+- 如果后续支持 OrcaSlicer，可在保持前端协议不变的前提下扩展 Agent 的执行器

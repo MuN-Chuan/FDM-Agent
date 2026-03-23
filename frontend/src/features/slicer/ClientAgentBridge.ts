@@ -5,7 +5,7 @@
  *
  * 功能：
  *   - 管理连接状态（connecting / connected / disconnected / error）
- *   - 发送命令 JSON 到本地 Agent（repack_3mf, print_start, printer_status, etc.）
+ *   - 发送命令 JSON 到本地 Agent（export_3mf_cli, print_start, printer_status, etc.）
  *   - 接收 Agent 推送并通过 EventEmitter 风格回调分发给订阅者
  *   - 自动重连（出现断连时 5s 后重试）
  */
@@ -124,9 +124,14 @@ class ClientAgentBridgeClass {
         return true;
     }
 
-    /** Repack a 3MF file on the backend using the Agent. */
+    /** Export a 3MF via the local slicer CLI using the Agent. */
+    export3MFViaCli(jobId: string, outputName?: string) {
+        return this.send('export_3mf_cli', { job_id: jobId, output_name: outputName ?? 'optimized.3mf' });
+    }
+
+    /** Backward-compatible alias for the old command name. */
     repack3MF(jobId: string, outputName?: string) {
-        return this.send('repack_3mf', { job_id: jobId, output_name: outputName ?? 'repacked.3mf' });
+        return this.export3MFViaCli(jobId, outputName);
     }
 
     /** Start printing a file (can reference a backend job_id so Agent downloads first). */

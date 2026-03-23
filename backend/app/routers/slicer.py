@@ -144,8 +144,9 @@ async def modify_3mf(request: ThreeMFModifyRequest):
     """
     Apply AI modifications to a previously parsed 3MF and generate a download.
 
-    - If repack_only=True (default): modifies project_settings.config in-place (pure Python).
-    - If repack_only=False: requires the Client Agent to handle BambuStudio CLI repack.
+    - If repack_only=True: modifies project_settings.config in-place (pure Python fallback).
+    - If repack_only=False (default): requires the Client Agent to call the local slicer CLI
+      so the slicer application itself exports the final 3MF.
 
     Returns a download token (same job_id) for GET /api/slicer/download-3mf/{job_id}.
     """
@@ -157,7 +158,15 @@ async def modify_3mf(request: ThreeMFModifyRequest):
         )
 
     settings = job["settings"]
+    print(f"[3MF Modify] Job ID: {request.job_id}, Incoming Mods: {len(request.modifications)}")
+    for m in request.modifications:
+        print(f"  - Mod: {m.get('name')} -> {m.get('new')}")
+
     modified_settings = threemf_service.apply_modifications(settings, request.modifications)
+    
+    applied = modified_settings.get("_ai_modifications_applied", [])
+    skipped = modified_settings.get("_ai_modifications_skipped", [])
+    print(f"[3MF Modify] Applied: {applied}, Skipped: {skipped}")
 
     if request.repack_only:
         modified_bytes = threemf_service.repack_3mf(job["original_bytes"], modified_settings)
@@ -171,16 +180,24 @@ async def modify_3mf(request: ThreeMFModifyRequest):
             "download_url": f"/api/slicer/download-3mf/{request.job_id}",
         }
     else:
-        # Client Agent will handle CLI repack — store modified settings for it to retrieve
+        # Client Agent will handle slicer-native CLI export.
+        cli_payload = threemf_service.build_cli_override_payload(
+            request.job_id,
+            settings,
+            modified_settings,
+            request.modifications,
+        )
         _threemf_jobs[request.job_id]["settings"] = modified_settings
-        _threemf_jobs[request.job_id]["pending_cli_repack"] = True
+        _threemf_jobs[request.job_id]["cli_payload"] = cli_payload
+        _threemf_jobs[request.job_id]["pending_agent_cli"] = True
         return {
             "job_id": request.job_id,
-            "status": "pending_cli_repack",
-            "message": "Client Agent should call GET /api/slicer/agent/settings/{job_id} "
-                       "then POST /api/slicer/agent/upload-result/{job_id}",
+            "status": "pending_agent_cli",
+            "message": "Client Agent should call GET /api/slicer/agent/cli-payload/{job_id}, "
+                       "run the local slicer CLI, then POST /api/slicer/agent/upload-result/{job_id}.",
             "applied": modified_settings.get("_ai_modifications_applied", []),
             "skipped": modified_settings.get("_ai_modifications_skipped", []),
+            "agent_payload_url": f"/api/slicer/agent/cli-payload/{request.job_id}",
         }
 
 
@@ -209,6 +226,9 @@ def download_3mf(job_id: str):
         headers={
             "Content-Disposition": f'attachment; filename="modified_{job_id[:8]}.3mf"',
             "Content-Length": str(len(modified_bytes)),
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
         },
     )
 
@@ -239,13 +259,32 @@ def agent_get_original(job_id: str):
 @router.get("/agent/settings/{job_id}")
 def agent_get_settings(job_id: str):
     """
-    Client Agent endpoint: Get the modified project_settings.config JSON
-    so the agent can write it into the 3MF before calling CLI.
+    Legacy Client Agent endpoint: return the flattened modified settings.
+    Kept for inspection / fallback use.
     """
     job = _threemf_jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
     return job["settings"]
+
+
+@router.get("/agent/cli-payload/{job_id}")
+def agent_get_cli_payload(job_id: str):
+    """
+    Client Agent endpoint: return slicer-native override presets for the
+    local Bambu Studio CLI workflow.
+    """
+    job = _threemf_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+
+    cli_payload = job.get("cli_payload")
+    if not cli_payload:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Job '{job_id}' does not have a pending CLI payload. Call POST /api/slicer/modify-3mf with repack_only=false first.",
+        )
+    return cli_payload
 
 
 @router.post("/agent/upload-result/{job_id}")
@@ -262,8 +301,12 @@ async def agent_upload_result(
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
 
     result_bytes = await file.read()
+    result_bytes = threemf_service.normalize_cli_export_3mf(
+        job["original_bytes"],
+        result_bytes,
+    )
     _threemf_jobs[job_id]["modified_bytes"] = result_bytes
-    _threemf_jobs[job_id]["pending_cli_repack"] = False
+    _threemf_jobs[job_id]["pending_agent_cli"] = False
 
     return {
         "job_id": job_id,

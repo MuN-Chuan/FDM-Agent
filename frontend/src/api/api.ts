@@ -37,11 +37,12 @@ export interface ThreeMFModifyRequest {
 
 export interface ThreeMFModifyResponse {
     job_id: string;
-    status: 'done' | 'pending_cli_repack';
+    status: 'done' | 'pending_agent_cli';
     download_url?: string;
     message?: string;
     applied: string[];
     skipped: string[];
+    agent_payload_url?: string;
 }
 
 export interface ChatMessage {
@@ -669,7 +670,7 @@ export const api = {
             body: JSON.stringify({
                 job_id: request.job_id,
                 modifications: request.modifications,
-                repack_only: request.repack_only ?? true
+                repack_only: request.repack_only ?? false
             }),
         });
 
@@ -682,11 +683,15 @@ export const api = {
     },
 
     getSlicerAgentOriginalUrl(jobId: string): string {
-        return `${BASE_URL}/api/slicer/agent/${jobId}/original`;
+        return `${BASE_URL}/api/slicer/agent/original/${jobId}`;
     },
 
     getSlicerAgentSettingsUrl(jobId: string): string {
-        return `${BASE_URL}/api/slicer/agent/${jobId}/settings`;
+        return `${BASE_URL}/api/slicer/agent/settings/${jobId}`;
+    },
+
+    getSlicerAgentCliPayloadUrl(jobId: string): string {
+        return `${BASE_URL}/api/slicer/agent/cli-payload/${jobId}`;
     },
 
     async uploadSlicerAgentResult(jobId: string, file: File): Promise<void> {

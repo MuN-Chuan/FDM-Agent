@@ -1,0 +1,26 @@
+{
+  "job_id": "integration-job",
+  "printer_settings_id": "Bambu Lab A1 mini 0.4 nozzle",
+  "print_settings_id": "0.20mm Standard @BBL A1M",
+  "filament_settings_ids": [
+    "Bambu PLA Basic @BBL A1M"
+  ],
+  "machine_preset": null,
+  "process_preset": {
+    "type": "process",
+    "name": "FDM-AI Process Override integrat",
+    "from": "user",
+    "instantiation": "true",
+    "inherits": "0.20mm Standard @BBL A1M",
+    "setting_id": "FDM-AI-P-integrat",
+    "compatible_printers": [
+      "Bambu Lab A1 mini 0.4 nozzle"
+    ],
+    "layer_height": "0.16"
+  },
+  "filament_presets": [],
+  "applied_keys": [
+    "layer_height"
+  ],
+  "output_name": "optimized_integrat.3mf"
+}

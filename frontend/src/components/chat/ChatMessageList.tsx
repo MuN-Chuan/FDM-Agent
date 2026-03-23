@@ -24,7 +24,7 @@ interface ChatMessageListProps {
     messages: ChatUIMessage[];
     hasPresetBundle: boolean;
     onDownloadPresets: (mods?: Modification[]) => void | Promise<void>;
-    onGenerate3MF: (mods?: Modification[]) => void | Promise<void>;
+    onGenerate3MF: (mods?: Modification[], existingResult?: ThreeMFParseResult) => void | Promise<void>;
     onEditMessage: (messageId: string, content: string) => void | Promise<void>;
     onRegenerateMessage: (messageId: string) => void | Promise<void>;
     onRequestModifications: (messageId: string) => void | Promise<void>;
@@ -303,6 +303,19 @@ function AssistantMessage({
                             <button
                                 onClick={() => void onDownloadPresets(message.modifications)}
                                 disabled={!hasPresetBundle}
+                                className="inline-flex min-w-[220px] cursor-pointer items-center justify-center gap-2 rounded-2xl bg-cta px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-cta/20 transition-all hover:-translate-y-0.5 hover:bg-[#1fb457] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 dark:hover:bg-[#1fb457]"
+                            >
+                                <Download size={14} />
+                                {t('chat.downloadPreset')}
+                            </button>
+                            <button
+                                onClick={() => void onGenerate3MF(message.modifications, existingSlicerResult)}
+                                className="inline-flex min-w-[200px] cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-cta bg-white px-5 py-2.5 text-sm font-bold text-cta shadow-md shadow-cta/10 transition-all hover:-translate-y-0.5 hover:bg-cta/5 dark:bg-transparent dark:hover:bg-cta/10"
+                            >
+                                <FileBox size={14} />
+                                生成3MF文件
+                            </button>
+                        </div>
                     </div>
                 )}
 
