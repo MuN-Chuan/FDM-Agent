@@ -195,27 +195,27 @@ export const DeveloperDashboard: React.FC = () => {
         <div className="space-y-8">
             <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                    <div className="mb-2 flex items-center gap-2 text-xs text-slate-500">
+                    <div className="mb-2 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
                         <span>Infrastructure</span>
                         <span>&gt;</span>
                         <span>Diagnostics</span>
                         <span>&gt;</span>
                         <span className="font-semibold text-[var(--color-primary)]">Report Center</span>
                     </div>
-                    <h1 className="font-heading text-3xl font-extrabold tracking-tight text-slate-950">
+                    <h1 className="font-heading text-3xl font-extrabold tracking-tighter text-slate-950">
                         {t('developer.title')}
                     </h1>
-                    <p className="mt-2 max-w-3xl text-sm text-slate-600">{t('developer.subtitle')}</p>
+                    <p className="mt-2 max-w-3xl text-sm text-[var(--color-text-muted)]">{t('developer.subtitle')}</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                    <div className="rounded bg-[var(--color-surface-muted)] px-3 py-2 text-xs text-slate-600">
+                    <div className="rounded bg-[var(--color-surface-container-low)] px-3 py-2 text-xs text-[var(--color-text-muted)]">
                         Signed in as <span className="font-semibold text-slate-900">{session.email}</span>
                     </div>
                     <button
                         type="button"
                         onClick={() => window.location.reload()}
-                        className="inline-flex items-center gap-2 rounded bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-[rgba(191,202,186,0.35)] transition-colors hover:bg-[var(--color-surface-muted)]"
+                        className="inline-flex items-center gap-2 rounded bg-[var(--color-surface-container-lowest)] px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm border border-[var(--color-outline-variant)] transition-all hover:bg-[var(--color-surface-container-low)] active:scale-95"
                     >
                         <RefreshCw size={15} />
                         {t('developer.refresh')}
@@ -223,7 +223,7 @@ export const DeveloperDashboard: React.FC = () => {
                     <button
                         type="button"
                         onClick={() => void handleLogout()}
-                        className="inline-flex items-center gap-2 rounded bg-[var(--color-primary)] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-container)]"
+                        className="inline-flex items-center gap-2 rounded bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[var(--color-primary-container)] active:scale-95"
                     >
                         {t('developer.logout')}
                     </button>

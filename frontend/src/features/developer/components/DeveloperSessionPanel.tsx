@@ -25,45 +25,45 @@ export const DeveloperSessionPanel: React.FC<DeveloperSessionPanelProps> = ({ lo
                 </button>
             </div>
 
-            <div className="overflow-hidden rounded bg-white shadow-sm ring-1 ring-[rgba(191,202,186,0.35)]">
+            <div className="overflow-hidden rounded bg-[var(--color-surface-container-lowest)] shadow-sm border border-[var(--color-outline-variant)]">
                 {loading ? (
                     <SessionEmptyState label={t('developer.loading')} />
                 ) : sessions.length === 0 ? (
                     <SessionEmptyState label={t('developer.noSessions')} />
                 ) : (
                     <table className="w-full text-left">
-                        <thead className="bg-[var(--color-surface-subtle)]">
+                        <thead className="bg-[var(--color-surface-container-high)]">
                             <tr>
-                                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.28em] text-slate-500">
+                                <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)]">
                                     Session Title
                                 </th>
-                                <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-[0.28em] text-slate-500">
+                                <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)]">
                                     Messages
                                 </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[rgba(191,202,186,0.3)]">
                             {sessions.slice(0, 5).map((session) => (
-                                <tr key={session.id} className="cursor-pointer transition-colors hover:bg-[var(--color-surface-muted)]">
+                                <tr key={session.id} className="cursor-pointer transition-colors hover:bg-[var(--color-surface-container-low)]">
                                     <td className="px-4 py-3 align-top">
                                         <div className="flex flex-col">
-                                            <span className="max-w-[180px] truncate text-xs font-semibold text-slate-900">
+                                            <span className="max-w-[180px] truncate text-xs font-semibold text-[var(--color-text-light)]">
                                                 {session.title}
                                             </span>
-                                            <span className="text-[10px] text-slate-500">
+                                            <span className="text-[10px] text-[var(--color-text-muted)]">
                                                 {formatDeveloperTimestamp(session.updated_at)}
                                             </span>
                                         </div>
                                         {session.preset_file_name ? (
                                             <div className="mt-1 flex gap-1">
-                                                <span className="rounded bg-[rgba(0,97,86,0.12)] px-1 py-0.5 text-[8px] font-bold uppercase tracking-[0.12em] text-[var(--color-tertiary)]">
-                                                    Preset File
+                                                <span className="rounded bg-[var(--color-tertiary-fixed)]/30 px-1 py-0.5 text-[8px] font-bold uppercase tracking-widest text-[var(--color-tertiary)]">
+                                                    PRESET_FILE
                                                 </span>
                                             </div>
                                         ) : null}
                                     </td>
                                     <td className="px-4 py-3 text-right align-top">
-                                        <span className="rounded bg-[var(--color-surface-muted)] px-2 py-0.5 font-mono text-xs text-slate-700">
+                                        <span className="rounded bg-[var(--color-surface-container-low)] px-2 py-0.5 font-mono text-xs text-[var(--color-text-muted)]">
                                             {session.message_count.toString().padStart(2, '0')}
                                         </span>
                                     </td>
@@ -74,24 +74,24 @@ export const DeveloperSessionPanel: React.FC<DeveloperSessionPanelProps> = ({ lo
                 )}
             </div>
 
-            <div className="rounded bg-[var(--color-surface-subtle)] p-4">
-                <h4 className="mb-3 text-[10px] font-bold uppercase tracking-[0.28em] text-slate-500">
+            <div className="rounded bg-[var(--color-surface-container-highest)] p-4">
+                <h4 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)]">
                     Live Telemetry Analysis
                 </h4>
                 <div className="space-y-3">
                     <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500">API Latency (p95)</span>
+                        <span className="text-[var(--color-text-muted)]">API Latency (p95)</span>
                         <span className="font-mono text-[var(--color-tertiary)]">{latency}</span>
                     </div>
-                    <div className="h-1 overflow-hidden rounded-full bg-[rgba(112,122,108,0.15)]">
+                    <div className="h-1 overflow-hidden rounded-full bg-[var(--color-outline-variant)]">
                         <div className="h-full bg-[var(--color-tertiary)]" style={{ width: latencyWidth }} />
                     </div>
 
                     <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500">Token Accuracy</span>
+                        <span className="text-[var(--color-text-muted)]">Token Accuracy</span>
                         <span className="font-mono text-[var(--color-tertiary)]">{positiveRate}</span>
                     </div>
-                    <div className="h-1 overflow-hidden rounded-full bg-[rgba(112,122,108,0.15)]">
+                    <div className="h-1 overflow-hidden rounded-full bg-[var(--color-outline-variant)]">
                         <div className="h-full bg-[var(--color-tertiary)]" style={{ width: accuracyWidth }} />
                     </div>
                 </div>
