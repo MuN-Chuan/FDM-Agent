@@ -17,7 +17,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpen
     const { locale, setLocale, t } = useI18n();
 
     return (
-        <header className="sticky top-0 z-30 h-16 border-b border-[rgba(191,202,186,0.55)] bg-[rgba(255,255,255,0.86)] backdrop-blur-md">
+        <header className="sticky top-0 z-30 h-16 bg-[rgba(255,255,255,0.94)]">
             <div className="flex h-full items-center justify-between px-5 md:px-6 lg:px-8">
                 <div className="flex min-w-0 items-center gap-8">
                     <div className="relative hidden w-72 md:block">
@@ -25,16 +25,16 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpen
                         <input
                             type="text"
                             placeholder="Search parameters or logs..."
-                            className="w-full bg-[var(--color-surface-muted)] py-2 pl-10 pr-4 text-sm text-slate-700 outline-none"
+                            className="w-full bg-[var(--color-surface-muted)] py-2 pl-10 pr-4 text-sm text-slate-700 outline-none placeholder:text-slate-400"
                         />
                     </div>
 
-                    <nav className="flex items-center gap-6">
+                    <nav className="flex h-full items-center gap-6">
                         <button
                             type="button"
-                            className={`pb-1 text-sm transition-colors ${
+                            className={`h-full border-b-2 text-sm transition-colors ${
                                 currentPage === 'chat'
-                                    ? 'border-b-2 border-green-700 font-semibold text-green-800'
+                                    ? 'border-green-700 font-semibold text-green-800'
                                     : 'font-medium text-slate-500 hover:text-slate-700'
                             }`}
                         >
@@ -42,9 +42,9 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpen
                         </button>
                         <button
                             type="button"
-                            className={`pb-1 text-sm transition-colors ${
+                            className={`h-full border-b-2 text-sm transition-colors ${
                                 currentPage === 'developer'
-                                    ? 'border-b-2 border-green-700 font-semibold text-green-800'
+                                    ? 'border-green-700 font-semibold text-green-800'
                                     : 'font-medium text-slate-500 hover:text-slate-700'
                             }`}
                         >

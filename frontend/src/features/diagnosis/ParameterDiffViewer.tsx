@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 
 export interface ParameterModification {
     name: string;
@@ -13,12 +13,6 @@ export interface ParameterModification {
 interface ParameterDiffViewerProps {
     modifications?: ParameterModification[];
 }
-
-const riskStyles: Record<ParameterModification['risk'], string> = {
-    low: 'bg-[var(--color-primary)] text-white',
-    medium: 'bg-yellow-100 text-yellow-700',
-    high: 'bg-rose-100 text-rose-700',
-};
 
 export const ParameterDiffViewer: React.FC<ParameterDiffViewerProps> = ({ modifications = [] }) => {
     if (modifications.length === 0) {
@@ -38,7 +32,6 @@ export const ParameterDiffViewer: React.FC<ParameterDiffViewerProps> = ({ modifi
                         <th className="px-5 py-4">Parameter</th>
                         <th className="px-5 py-4">Current</th>
                         <th className="px-5 py-4">Proposed</th>
-                        <th className="px-5 py-4">Risk</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-[rgba(191,202,186,0.28)] bg-white">
@@ -53,12 +46,6 @@ export const ParameterDiffViewer: React.FC<ParameterDiffViewerProps> = ({ modifi
                                     <span>{item.new}</span>
                                 </div>
                                 {item.range ? <p className="mt-2 text-xs text-slate-400">Range: {item.range}</p> : null}
-                            </td>
-                            <td className="px-5 py-4">
-                                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${riskStyles[item.risk]}`}>
-                                    {item.risk === 'low' ? <Info size={12} /> : <AlertTriangle size={12} />}
-                                    {item.risk}
-                                </span>
                             </td>
                         </tr>
                     ))}

@@ -83,9 +83,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     return (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-5 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-5xl">
-                <div className="pointer-events-auto overflow-hidden bg-white">
+                <div className="pointer-events-auto overflow-hidden bg-white shadow-[0_10px_28px_rgba(25,28,29,0.04)]">
                     {(pendingImage || presetFileName || pendingFiles.length > 0 || pendingSlicerResult) && (
-                        <div className="flex flex-wrap gap-3 bg-[#f4f5f3] px-5 py-4">
+                        <div className="flex flex-wrap gap-3 bg-[#f3f4f5] px-5 py-4">
                             {pendingImage && (
                                 <AttachmentChip
                                     icon={<ImageIcon size={18} className="text-slate-600" />}
@@ -143,7 +143,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                         className="min-h-[160px] max-h-[320px] w-full resize-none border-0 bg-white px-6 py-6 text-[15px] leading-8 text-slate-800 outline-none placeholder:text-[15px] placeholder:text-slate-500 disabled:opacity-50"
                     />
 
-                    <div className="flex flex-col gap-4 bg-[#f4f5f3] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex flex-col gap-4 bg-[#f3f4f5] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex flex-wrap items-center gap-3">
                             <div className="flex items-center gap-1 text-slate-500">
                                 <IconButton
@@ -203,7 +203,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                                 type="button"
                                 onClick={() => void onSubmit()}
                                 disabled={isStreaming || !canSubmit || !!presetValidationError}
-                                className={`inline-flex min-w-[224px] items-center justify-center gap-3 rounded px-5 py-3 text-base font-semibold transition-all ${
+                                className={`inline-flex min-w-[224px] items-center justify-center gap-3 px-5 py-3 text-base font-semibold transition-all ${
                                     isStreaming || !canSubmit || !!presetValidationError
                                         ? 'cursor-not-allowed bg-slate-300 text-slate-100'
                                         : 'bg-[var(--color-primary)] text-white shadow-[0_12px_24px_rgba(13,99,27,0.22)] hover:bg-[var(--color-primary-container)]'

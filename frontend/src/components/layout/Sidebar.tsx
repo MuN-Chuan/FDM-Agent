@@ -125,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
     ];
 
     return (
-        <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 shrink-0 border-r border-[var(--shell-border)] bg-[var(--shell-sidebar)] backdrop-blur-xl lg:flex lg:flex-col">
+        <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 shrink-0 bg-[var(--shell-sidebar)] lg:flex lg:flex-col">
             <div className="flex items-center gap-3 px-6 py-6">
                 <div className="flex h-8 w-8 items-center justify-center rounded bg-[var(--color-primary)] text-white">
                     <Wrench size={16} />
@@ -150,7 +150,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                             onClick={item.onClick}
                             className={`flex w-full items-center gap-3 px-4 py-3 text-left font-heading text-sm font-semibold tracking-tight transition-colors ${
                                 item.isActive
-                    ? 'border-l-4 border-green-700 bg-white/45 text-green-900'
+                                    ? 'border-l-[3px] border-green-700 bg-white/45 text-green-900'
                                     : item.isDisabled
                                       ? 'cursor-not-allowed text-slate-400'
                                       : 'cursor-pointer text-slate-500 hover:bg-slate-200/80 hover:text-slate-700'
@@ -164,7 +164,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
             </nav>
 
             {historyExpanded && (
-                <section className="mx-4 mb-4 border-t border-[rgba(191,202,186,0.65)] pt-4">
+                <section className="mx-4 mb-4 pt-4">
                     <div className="flex items-center justify-between gap-3 px-1">
                         <h2 className="font-heading text-sm font-bold tracking-tight text-slate-900">Recent Sessions</h2>
                         <button
@@ -204,7 +204,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                 </section>
             )}
 
-            <div className="mt-auto border-t border-[var(--shell-border)] px-4 py-4">
+            <div className="mt-auto px-4 py-4">
                 <button
                     type="button"
                     className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-slate-500 transition-colors hover:bg-slate-200/70 hover:text-slate-700"

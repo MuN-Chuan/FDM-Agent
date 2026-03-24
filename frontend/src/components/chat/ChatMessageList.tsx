@@ -53,7 +53,7 @@ function renderAssistantContent(content: string) {
             return (
                 <h3
                     key={index}
-                    className="mt-7 border-b border-[rgba(191,202,186,0.45)] pb-2 font-heading text-sm font-bold uppercase tracking-[0.18em] text-[var(--color-tertiary)]"
+                    className="mt-7 font-heading text-sm font-bold uppercase tracking-[0.18em] text-[var(--color-tertiary)]"
                 >
                     {normalizedBlock.replace('### ', '')}
                 </h3>
@@ -72,7 +72,7 @@ function renderAssistantContent(content: string) {
             return (
                 <div
                     key={index}
-                    className="my-5 border-l-4 border-[var(--color-tertiary)] bg-[#e8e8e6] px-5 py-4"
+                    className="my-5 border-l-[3px] border-[var(--color-tertiary)] bg-[#e7e8e9] px-5 py-4"
                 >
                     <div className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-[var(--color-tertiary)]">
                         Technical Summary
@@ -90,7 +90,7 @@ function renderAssistantContent(content: string) {
             <p
                 key={index}
                 className={`my-4 text-[15px] leading-8 ${
-                    index === 0 ? 'font-medium text-slate-900' : 'text-slate-700'
+                    index === 0 ? 'font-medium text-[var(--color-text-light)]' : 'text-slate-700'
                 }`}
             >
                 {normalizedBlock}
@@ -244,13 +244,13 @@ function AssistantMessage({
 
             {!!message.content && (
                 <article className="w-full overflow-hidden bg-white">
-                    <div className="flex flex-col gap-4 bg-[#fbfbfa] px-6 py-5 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex flex-col gap-4 bg-white px-6 py-5 lg:flex-row lg:items-start lg:justify-between">
                         <div className="flex items-start gap-4">
                             <div className="flex h-11 w-11 items-center justify-center bg-[rgba(13,99,27,0.12)] text-[var(--color-primary)]">
                                 <Sparkles size={18} className={message.isStreaming ? 'animate-pulse' : ''} />
                             </div>
                             <div>
-                                <h3 className="font-heading text-[1.05rem] font-extrabold tracking-tight text-slate-950">
+                                <h3 className="font-heading text-[1.05rem] font-extrabold tracking-[-0.01em] text-slate-950">
                                     DIAGNOSTIC ARCHITECTURE
                                     {message.isStreaming ? ' - Streaming' : ''}
                                 </h3>
@@ -272,7 +272,7 @@ function AssistantMessage({
                         )}
 
                         {!message.isStreaming && message.usage && (
-                            <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-[rgba(191,202,186,0.45)] pt-4 text-[11px] text-slate-400">
+                            <div className="mt-8 flex flex-wrap items-center gap-3 pt-4 text-[11px] text-slate-400">
                                 <span className="font-semibold uppercase tracking-[0.14em]">Thinking Process</span>
                                 <span>Tokens: {message.usage.total_tokens}</span>
                                 {message.usage.cache_tokens ? <span>Cache: {message.usage.cache_tokens}</span> : null}
@@ -286,10 +286,9 @@ function AssistantMessage({
                                 <button
                                     type="button"
                                     onClick={() => setModificationsOpen((value) => !value)}
-                                    className="flex w-full items-center justify-between bg-[#eef5ec] px-5 py-4"
+                                    className="flex w-full items-center justify-between bg-[#edf3eb] px-5 py-4"
                                 >
                                     <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-[var(--color-primary)]">
-                                        <Wrench size={14} />
                                         <span>Suggested Parameter Optimization</span>
                                     </div>
                                     <div className="inline-flex items-center gap-2">
@@ -611,7 +610,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     bottomRef,
 }) => (
     <div className="custom-scrollbar relative flex-1 overflow-y-auto pb-[34vh] pt-8">
-        <div className="mx-auto w-full max-w-[1120px] space-y-8 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-[1140px] space-y-8 px-4 sm:px-6 lg:px-8">
             {messages.map((message, index) => {
                 if (message.role === 'user') {
                     return <UserMessage key={message.id} message={message} onEditMessage={onEditMessage} />;
