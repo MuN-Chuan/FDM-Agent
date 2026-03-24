@@ -14,7 +14,6 @@ import { PresetSelectionModal } from '../features/diagnosis/PresetSelectionModal
 import { usePresetParser } from '../features/diagnosis/usePresetParser';
 import { SlicerJobModal } from '../features/slicer/SlicerJobModal';
 import { useClientAgent } from '../features/slicer/useClientAgent';
-import { ClientAgentIndicator } from '../features/slicer/ClientAgentIndicator';
 import { useI18n } from '../i18n/I18nProvider';
 
 interface AIChatPageProps {
@@ -635,10 +634,10 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
     );
 
 
-    const { agentStatus, capabilities, connect: connectAgent, disconnect: disconnectAgent } = useClientAgent();
+    useClientAgent();
 
     return (
-        <div className="shell-panel relative flex h-full min-h-0 overflow-hidden">
+        <div className="relative flex h-full min-h-0 overflow-hidden bg-transparent">
             <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageFile} />
             <input
                 ref={presetInputRef}
@@ -657,14 +656,6 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             />
 
             <div className="relative flex min-w-0 flex-1 flex-col">
-                <div className="flex items-center justify-end border-b border-slate-200/70 bg-white/55 px-4 py-2 backdrop-blur">
-                    <ClientAgentIndicator
-                        status={agentStatus}
-                        printerHost={capabilities?.printer_host}
-                        onConnect={connectAgent}
-                        onDisconnect={disconnectAgent}
-                    />
-                </div>
                 <ChatMessageList
                     messages={messages}
                     hasPresetBundle={!!bundle}

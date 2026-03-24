@@ -73,23 +73,11 @@ h6 {
 .app-shell {
   position: relative;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(46, 125, 50, 0.08), transparent 28%),
-    radial-gradient(circle at top right, rgba(0, 97, 86, 0.08), transparent 24%),
-    var(--shell-page);
+  background: var(--shell-page);
 }
 
 .app-shell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(191, 202, 186, 0.22) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(191, 202, 186, 0.22) 1px, transparent 1px);
-  background-size: 72px 72px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.1), transparent 76%);
-  opacity: 0.24;
+  content: none;
 }
 
 .shell-panel {

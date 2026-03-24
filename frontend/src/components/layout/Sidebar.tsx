@@ -33,14 +33,14 @@ interface SidebarNavItem {
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, currentSessionId, onSessionChange }) => {
     const { t } = useI18n();
-    const [historyExpanded, setHistoryExpanded] = React.useState(currentPage === 'chat');
+    const [historyExpanded, setHistoryExpanded] = React.useState(false);
     const [history, setHistory] = React.useState<ChatSessionMetadata[]>([]);
     const settingsClickStateRef = React.useRef<{ count: number; lastClickAt: number }>({ count: 0, lastClickAt: 0 });
 
     React.useEffect(() => {
         let cancelled = false;
 
-        if (historyExpanded || currentPage === 'chat') {
+        if (historyExpanded) {
             void chatStorage.listSessions().then((sessions) => {
                 if (!cancelled) {
                     setHistory(sessions);
@@ -150,7 +150,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                             onClick={item.onClick}
                             className={`flex w-full items-center gap-3 px-4 py-3 text-left font-heading text-sm font-semibold tracking-tight transition-colors ${
                                 item.isActive
-                                    ? 'border-l-4 border-green-700 bg-white/65 text-green-900'
+                    ? 'border-l-4 border-green-700 bg-white/45 text-green-900'
                                     : item.isDisabled
                                       ? 'cursor-not-allowed text-slate-400'
                                       : 'cursor-pointer text-slate-500 hover:bg-slate-200/80 hover:text-slate-700'
@@ -163,9 +163,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                 })}
             </nav>
 
-            {(historyExpanded || currentPage === 'chat') && (
-                <section className="mx-4 mb-4 rounded-lg border border-[var(--shell-border)] bg-[var(--shell-panel-bg)] p-4 shadow-[var(--shadow-md)]">
-                    <div className="flex items-center justify-between gap-3">
+            {historyExpanded && (
+                <section className="mx-4 mb-4 border-t border-[rgba(191,202,186,0.65)] pt-4">
+                    <div className="flex items-center justify-between gap-3 px-1">
                         <h2 className="font-heading text-sm font-bold tracking-tight text-slate-900">Recent Sessions</h2>
                         <button
                             type="button"
@@ -176,17 +176,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                         </button>
                     </div>
 
-                    <div className="custom-scrollbar mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
+                    <div className="custom-scrollbar mt-3 max-h-64 space-y-1 overflow-y-auto pr-1">
                         {history.length > 0 ? (
                             history.map((item) => (
                                 <button
                                     key={item.id}
                                     type="button"
                                     onClick={() => handleSessionClick(item.id)}
-                                    className={`w-full rounded-md border px-3 py-2 text-left transition-colors ${
+                                    className={`w-full px-3 py-2 text-left transition-colors ${
                                         currentSessionId === item.id
-                                            ? 'border-green-700/30 bg-green-50 text-slate-900'
-                                            : 'border-transparent bg-[var(--color-surface-muted)] text-slate-600 hover:border-[var(--shell-border)] hover:bg-white'
+                                            ? 'bg-white/70 text-slate-900'
+                                            : 'text-slate-600 hover:bg-white/55 hover:text-slate-800'
                                     }`}
                                 >
                                     <span className="block truncate text-xs font-semibold">{item.title}</span>
@@ -196,7 +196,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                                 </button>
                             ))
                         ) : (
-                            <div className="rounded-md border border-dashed border-[var(--shell-border)] bg-[var(--color-surface-muted)] px-3 py-8 text-center text-xs text-slate-500">
+                            <div className="px-3 py-8 text-center text-xs text-slate-500">
                                 {t('sidebar.noSessions')}
                             </div>
                         )}

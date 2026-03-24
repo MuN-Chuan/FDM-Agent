@@ -1,5 +1,18 @@
 import React from 'react';
-import { AlertTriangle, FileBox, FileText, Image as ImageIcon, Loader2, Package, Paperclip, Scan, Send, Sparkles, X } from 'lucide-react';
+import {
+    AlertTriangle,
+    Camera,
+    FileBox,
+    FileText,
+    Image as ImageIcon,
+    Loader2,
+    Package,
+    Paperclip,
+    Scan,
+    Send,
+    Settings2,
+    X,
+} from 'lucide-react';
 
 import { useI18n } from '../../i18n/I18nProvider';
 import type { ThreeMFParseResult } from '../../api/api';
@@ -65,57 +78,51 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     onClearSlicerResult,
 }) => {
     const { t } = useI18n();
+    const canSubmit = !!input.trim() || !!pendingImage || pendingFiles.length > 0 || !!pendingSlicerResult;
 
     return (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-6 sm:px-6">
-            <div className="mx-auto max-w-4xl">
-                <div className="pointer-events-auto flex flex-col rounded-[32px] border border-secondary/20 bg-white shadow-xl transition-all focus-within:border-cta/40 focus-within:ring-4 focus-within:ring-cta/10 dark:bg-secondary/10">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-5 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-5xl">
+                <div className="pointer-events-auto overflow-hidden bg-white">
                     {(pendingImage || presetFileName || pendingFiles.length > 0 || pendingSlicerResult) && (
-                        <div className="flex flex-wrap gap-3 px-4 pt-4">
+                        <div className="flex flex-wrap gap-3 bg-[#f4f5f3] px-5 py-4">
                             {pendingImage && (
-                                <div className="overflow-hidden rounded-xl border border-secondary/20 shadow-sm">
-                                    <img src={pendingImage.previewUrl} alt="preview" className="h-16 w-16 object-cover" />
-                                </div>
+                                <AttachmentChip
+                                    icon={<ImageIcon size={18} className="text-slate-600" />}
+                                    label="Image Attachment"
+                                    preview={pendingImage.previewUrl}
+                                    onRemove={() => imageInputRef.current && imageInputRef.current.value === ''}
+                                    hideRemove
+                                />
                             )}
+
                             {presetFileName && (
-                                <div className="flex items-center gap-2 rounded-xl border border-cta/20 bg-cta/10 px-3 py-2 text-xs text-cta shadow-sm">
-                                    <Package size={16} />
-                                    <span className="max-w-[220px] truncate font-medium">{presetFileName}</span>
-                                    <button onClick={onOpenPresetModal} className="rounded p-1 hover:bg-cta/10" title={t('chat.configurePreset')}>
-                                        <Sparkles size={14} />
-                                    </button>
-                                    <button onClick={onClearPreset} className="rounded p-1 hover:bg-cta/10" title={t('chat.removePreset')}>
-                                        <X size={14} />
-                                    </button>
-                                </div>
+                                <AttachmentChip
+                                    icon={<Package size={18} className="text-[var(--color-primary)]" />}
+                                    label={presetFileName}
+                                    onPrimaryAction={onOpenPresetModal}
+                                    onRemove={onClearPreset}
+                                    accent
+                                />
                             )}
+
                             {pendingFiles.map((file, index) => (
-                                <div
+                                <AttachmentChip
                                     key={`${file.name}-${index}`}
-                                    className="flex items-center gap-2 rounded-xl border border-secondary/20 bg-secondary/5 px-3 py-2 text-xs text-text-light shadow-sm dark:text-text-dark"
-                                >
-                                    <FileText size={16} className="shrink-0 opacity-70" />
-                                    <div className="min-w-0">
-                                        <p className="max-w-[220px] truncate font-medium">{file.name}</p>
-                                        <p className="text-[10px] opacity-50">{Math.max(1, Math.round(file.size / 1024))} KB</p>
-                                    </div>
-                                    <button
-                                        onClick={() => onRemovePendingFile(index)}
-                                        className="rounded p-1 hover:bg-secondary/10"
-                                        title={t('chat.removeAttachment')}
-                                    >
-                                        <X size={14} />
-                                    </button>
-                                </div>
+                                    icon={<FileText size={18} className="text-slate-600" />}
+                                    label={file.name}
+                                    onRemove={() => onRemovePendingFile(index)}
+                                />
                             ))}
+
                             {pendingSlicerResult && (
-                                <div className="flex items-center gap-2 rounded-xl border border-cta/20 bg-cta/10 px-3 py-2 text-xs text-cta shadow-sm">
-                                    <FileBox size={16} />
-                                    <span className="max-w-[220px] truncate font-medium">3MF: {pendingSlicerResult.printer_model || 'Project'}</span>
-                                    <button onClick={onClearSlicerResult} className="rounded p-1 hover:bg-cta/10" title="移除 3MF 文件">
-                                        <X size={14} />
-                                    </button>
-                                </div>
+                                <AttachmentChip
+                                    icon={<FileBox size={18} className="text-[var(--color-primary)]" />}
+                                    label={`3MF ${pendingSlicerResult.printer_model || 'Project'}`}
+                                    onPrimaryAction={onOpenSlicerModal}
+                                    onRemove={onClearSlicerResult}
+                                    accent
+                                />
                             )}
                         </div>
                     )}
@@ -130,89 +137,154 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                                 void onSubmit();
                             }
                         }}
-                        placeholder={t('chat.inputPlaceholder')}
+                        placeholder="Describe the engineering problem or upload telemetry data..."
                         rows={1}
                         disabled={isStreaming}
-                        className="min-h-[60px] max-h-[300px] w-full resize-none bg-transparent px-6 pb-2 pt-5 text-base leading-relaxed text-text-light outline-none placeholder:text-text-light/40 disabled:opacity-50 dark:text-text-dark dark:placeholder:text-text-dark/40"
+                        className="min-h-[160px] max-h-[320px] w-full resize-none border-0 bg-white px-6 py-6 text-[15px] leading-8 text-slate-800 outline-none placeholder:text-[15px] placeholder:text-slate-500 disabled:opacity-50"
                     />
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 px-4 pb-3 pt-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <button
-                                onClick={() => imageInputRef.current?.click()}
-                                disabled={isStreaming}
-                                className="rounded-full p-2.5 text-text-light/60 transition-all hover:bg-cta/5 hover:text-cta disabled:opacity-40"
-                                title={t('chat.uploadImage')}
-                            >
-                                <ImageIcon size={20} />
-                            </button>
-                            <button
-                                onClick={() => presetInputRef.current?.click()}
-                                disabled={isStreaming || isParsingPreset}
-                                className="flex items-center gap-2 rounded-full border border-cta/20 bg-cta/5 px-3 py-2 text-sm font-medium text-cta transition-all hover:bg-cta/10 disabled:opacity-40"
-                                title={t('chat.uploadPreset')}
-                            >
-                                {isParsingPreset ? <Loader2 size={18} className="animate-spin text-cta" /> : <Package size={18} />}
-                                <span>{t('chat.uploadPreset')}</span>
-                            </button>
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isStreaming}
-                                className="rounded-full p-2.5 text-text-light/60 transition-all hover:bg-cta/5 hover:text-cta disabled:opacity-40"
-                                title={t('chat.uploadAttachment')}
-                            >
-                                <Paperclip size={18} />
-                            </button>
-                        </div>
+                    <div className="flex flex-col gap-4 bg-[#f4f5f3] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-1 text-slate-500">
+                                <IconButton
+                                    title={t('chat.uploadImage')}
+                                    disabled={isStreaming}
+                                    onClick={() => imageInputRef.current?.click()}
+                                    icon={<Camera size={19} />}
+                                />
+                                <IconButton
+                                    title={t('chat.uploadPreset')}
+                                    disabled={isStreaming || isParsingPreset}
+                                    onClick={() => presetInputRef.current?.click()}
+                                    icon={
+                                        isParsingPreset ? <Loader2 size={19} className="animate-spin" /> : <FileText size={19} />
+                                    }
+                                />
+                                <IconButton
+                                    title={t('chat.uploadAttachment')}
+                                    disabled={isStreaming}
+                                    onClick={() => fileInputRef.current?.click()}
+                                    icon={<Paperclip size={19} />}
+                                />
+                            </div>
 
-                        <div className="flex flex-wrap items-center justify-end gap-2">
+                            <div className="hidden h-8 w-px bg-[rgba(112,122,108,0.25)] sm:block" />
+
                             <button
+                                type="button"
                                 onClick={onOpenDefectRecognition}
-                                className="flex items-center gap-2 rounded-full border border-cta/20 bg-cta/5 px-3 py-2 text-sm font-medium text-cta transition-all hover:bg-cta/10"
-                                title={t('chat.defectRecognition')}
+                                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-[var(--color-tertiary)] transition-colors hover:bg-white/70"
                             >
-                                <Scan size={18} />
+                                <Scan size={17} />
                                 <span>{t('chat.defectRecognition')}</span>
                             </button>
+
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 lg:justify-end">
                             <button
-                                onClick={onOpenSlicerModal}
-                                className="flex items-center gap-2 rounded-full border border-cta/20 bg-cta/5 px-3 py-2 text-sm font-medium text-cta transition-all hover:bg-cta/10"
-                                title="上传 3MF 优化预设"
-                            >
-                                <FileBox size={18} />
-                                <span>3MF 预设优化</span>
-                            </button>
-                            <button
+                                type="button"
                                 onClick={onOpenSettings}
-                                className="flex items-center gap-2 rounded-full border border-cta/20 bg-cta/10 px-3 py-1.5 text-[12px] font-bold text-cta shadow-sm transition-all hover:bg-cta/15"
+                                className="inline-flex items-center gap-2 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-[#fbfbfa]"
                             >
-                                <Sparkles size={14} className="text-cta" />
-                                <span>{modelName}</span>
+                                <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Model</span>
+                                <span className="font-semibold">{modelName}</span>
+                                <Settings2 size={15} className="text-slate-500" />
                             </button>
+
                             {presetValidationError && (
-                                <div className="group relative">
-                                    <AlertTriangle size={20} className="animate-pulse text-yellow-500" />
-                                    <span className="pointer-events-none absolute bottom-full right-0 z-50 mb-2 w-56 rounded border border-yellow-500/30 bg-background-dark px-3 py-2 text-[10px] text-white opacity-0 shadow-xl transition-opacity group-hover:opacity-100">
-                                        {t('chat.presetValidation')}
-                                    </span>
+                                <div className="inline-flex items-center gap-2 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                                    <AlertTriangle size={15} />
+                                    <span>{t('chat.presetValidation')}</span>
                                 </div>
                             )}
+
                             <button
+                                type="button"
                                 onClick={() => void onSubmit()}
-                                disabled={isStreaming || (!input.trim() && !pendingImage && pendingFiles.length === 0 && !pendingSlicerResult) || !!presetValidationError}
-                                className={`rounded-full p-2.5 shadow-md transition-all ${
-                                    isStreaming || (!input.trim() && !pendingImage && pendingFiles.length === 0 && !pendingSlicerResult) || !!presetValidationError
-                                        ? 'cursor-not-allowed border border-secondary/10 bg-secondary/20 text-text-light/20'
-                                        : 'bg-cta text-white shadow-lg shadow-cta/20 hover:scale-105 hover:bg-cta active:scale-95'
+                                disabled={isStreaming || !canSubmit || !!presetValidationError}
+                                className={`inline-flex min-w-[224px] items-center justify-center gap-3 rounded px-5 py-3 text-base font-semibold transition-all ${
+                                    isStreaming || !canSubmit || !!presetValidationError
+                                        ? 'cursor-not-allowed bg-slate-300 text-slate-100'
+                                        : 'bg-[var(--color-primary)] text-white shadow-[0_12px_24px_rgba(13,99,27,0.22)] hover:bg-[var(--color-primary-container)]'
                                 }`}
                             >
-                                {isStreaming ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+                                {isStreaming ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                                <span>Send Analysis</span>
                             </button>
                         </div>
                     </div>
                 </div>
-                <p className="mt-3 text-center text-[10px] text-text-light/30 dark:text-text-dark/30">{t('chat.warning')}</p>
+
+                <p className="mt-3 text-center text-[10px] text-slate-400">{t('chat.warning')}</p>
             </div>
         </div>
     );
 };
+
+const IconButton: React.FC<{
+    title: string;
+    disabled?: boolean;
+    onClick: () => void;
+    icon: React.ReactNode;
+}> = ({ title, disabled, onClick, icon }) => (
+    <button
+        type="button"
+        title={title}
+        disabled={disabled}
+        onClick={onClick}
+        className="rounded border border-transparent p-2.5 transition-colors hover:bg-white hover:text-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+    >
+        {icon}
+    </button>
+);
+
+const AttachmentChip: React.FC<{
+    icon: React.ReactNode;
+    label: string;
+    preview?: string;
+    accent?: boolean;
+    hideRemove?: boolean;
+    onPrimaryAction?: () => void;
+    onRemove?: () => void;
+}> = ({ icon, label, preview, accent = false, hideRemove = false, onPrimaryAction, onRemove }) => (
+    <div
+        className={`flex min-w-[240px] items-center gap-3 px-4 py-3 ${
+            accent
+                ? 'bg-[rgba(13,99,27,0.08)]'
+                : 'bg-[var(--color-surface-muted)]'
+        }`}
+    >
+        {preview ? (
+            <img src={preview} alt={label} className="h-11 w-11 object-cover" />
+        ) : (
+            <div className="flex h-11 w-11 items-center justify-center bg-white">
+                {icon}
+            </div>
+        )}
+
+        <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium text-slate-700">{label}</p>
+        </div>
+
+        {onPrimaryAction ? (
+            <button
+                type="button"
+                onClick={onPrimaryAction}
+                className="px-2 py-1 text-xs font-semibold text-[var(--color-primary)] transition-colors hover:bg-white"
+            >
+                View
+            </button>
+        ) : null}
+
+        {!hideRemove && onRemove ? (
+            <button
+                type="button"
+                onClick={onRemove}
+                className="p-1 text-slate-400 transition-colors hover:bg-white hover:text-slate-700"
+            >
+                <X size={15} />
+            </button>
+        ) : null}
+    </div>
+);

@@ -17,33 +17,35 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpen
     const { locale, setLocale, t } = useI18n();
 
     return (
-        <header className="sticky top-0 z-30 px-4 py-4 md:px-6 lg:px-8">
-            <div className="shell-panel-strong flex h-16 items-center justify-between px-5 md:px-8">
-                <div className="flex min-w-0 items-center gap-6">
-                    <div className="relative hidden w-64 md:block">
+        <header className="sticky top-0 z-30 h-16 border-b border-[rgba(191,202,186,0.55)] bg-[rgba(255,255,255,0.86)] backdrop-blur-md">
+            <div className="flex h-full items-center justify-between px-5 md:px-6 lg:px-8">
+                <div className="flex min-w-0 items-center gap-8">
+                    <div className="relative hidden w-72 md:block">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <input
                             type="text"
                             placeholder="Search parameters or logs..."
-                            className="w-full rounded-lg border-none bg-[var(--color-surface-muted)] py-2 pl-10 pr-4 text-sm text-slate-700 outline-none ring-1 ring-transparent transition-all focus:bg-white focus:ring-[rgba(13,99,27,0.15)]"
+                            className="w-full bg-[var(--color-surface-muted)] py-2 pl-10 pr-4 text-sm text-slate-700 outline-none"
                         />
                     </div>
 
                     <nav className="flex items-center gap-6">
                         <button
                             type="button"
-                            className={`text-sm font-medium transition-colors ${
-                                currentPage === 'chat' ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'
+                            className={`pb-1 text-sm transition-colors ${
+                                currentPage === 'chat'
+                                    ? 'border-b-2 border-green-700 font-semibold text-green-800'
+                                    : 'font-medium text-slate-500 hover:text-slate-700'
                             }`}
                         >
                             Tools
                         </button>
                         <button
                             type="button"
-                            className={`border-b-2 pb-1 text-sm font-semibold transition-colors ${
+                            className={`pb-1 text-sm transition-colors ${
                                 currentPage === 'developer'
-                                    ? 'border-green-700 text-green-800'
-                                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                                    ? 'border-b-2 border-green-700 font-semibold text-green-800'
+                                    : 'font-medium text-slate-500 hover:text-slate-700'
                             }`}
                         >
                             History
@@ -56,7 +58,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpen
                         <button
                             type="button"
                             onClick={() => setLocale('zh')}
-                            className={`rounded p-2 text-slate-500 transition-colors hover:text-green-800 ${
+                            className={`p-2 text-slate-500 transition-colors hover:text-green-800 ${
                                 locale === 'zh' ? 'bg-[var(--color-surface-muted)] text-green-800' : ''
                             }`}
                             title={t('topbar.lang.zh')}
@@ -66,7 +68,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpen
                         <button
                             type="button"
                             onClick={() => setLocale('en')}
-                            className={`rounded px-2 py-1 text-xs font-semibold transition-colors ${
+                            className={`px-2 py-1 text-xs font-semibold transition-colors ${
                                 locale === 'en'
                                     ? 'bg-[var(--color-surface-muted)] text-green-800'
                                     : 'text-slate-500 hover:text-green-800'
@@ -76,18 +78,10 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpen
                         </button>
                     </div>
 
-                    <button
-                        type="button"
-                        className="rounded p-2 text-slate-500 transition-colors hover:text-green-800"
-                        title="Notifications"
-                    >
+                    <button type="button" className="p-2 text-slate-500 transition-colors hover:text-green-800" title="Notifications">
                         <Bell size={18} />
                     </button>
-                    <button
-                        type="button"
-                        className="rounded p-2 text-slate-500 transition-colors hover:text-green-800"
-                        title="Workspace"
-                    >
+                    <button type="button" className="p-2 text-slate-500 transition-colors hover:text-green-800" title="Workspace">
                         <LayoutGrid size={18} />
                     </button>
 
@@ -101,13 +95,13 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpen
                                     {currentUser.role} · {t('topbar.points')}: {currentUser.points_balance}
                                 </p>
                             </div>
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-primary)] text-white">
+                            <div className="flex h-9 w-9 items-center justify-center bg-[var(--color-primary)] text-white">
                                 <User size={16} />
                             </div>
                             <button
                                 type="button"
                                 onClick={onLogout}
-                                className="rounded p-2 text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                                className="p-2 text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600"
                                 title={t('topbar.logout')}
                             >
                                 <LogOut size={16} />
@@ -117,7 +111,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpen
                         <button
                             type="button"
                             onClick={onOpenAuth}
-                            className="rounded bg-[var(--color-primary)] px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-container)]"
+                            className="bg-[var(--color-primary)] px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-container)]"
                         >
                             {t('topbar.login')}
                         </button>

@@ -46,7 +46,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                 <main
                     className={`relative flex-1 overflow-hidden ${
                         isChatPage
-                            ? 'px-4 pb-4 pt-2 md:px-6 md:pb-6 md:pt-3 lg:px-8'
+                            ? 'px-0 pb-0 pt-0'
                             : 'px-4 pb-6 pt-4 md:px-6 md:pb-8 md:pt-5 lg:px-8 lg:pb-10'
                     }`}
                 >
