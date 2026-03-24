@@ -25,23 +25,32 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     onOpenAuth,
     onLogout,
 }) => {
+    const isChatPage = currentPage === 'chat';
+
     return (
-        <div className="h-screen flex bg-background-light dark:bg-background-dark overflow-hidden">
+        <div className="app-shell flex min-h-screen bg-transparent text-[var(--color-text-light)]">
             <Sidebar
                 currentPage={currentPage}
                 onNavigate={onNavigate}
                 currentSessionId={currentSessionId}
                 onSessionChange={onSessionChange}
             />
-            <div className="flex-1 flex flex-col h-screen overflow-hidden">
+            <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-hidden lg:pl-64">
                 <Topbar
+                    currentPage={currentPage}
                     isBorderless={currentPage === 'chat'}
                     currentUser={currentUser}
                     onOpenAuth={onOpenAuth}
                     onLogout={onLogout}
                 />
-                <main className="flex-1 p-8 overflow-y-auto relative">
-                    <div className="max-w-[1440px] mx-auto h-full">
+                <main
+                    className={`relative flex-1 overflow-hidden ${
+                        isChatPage
+                            ? 'px-4 pb-4 pt-2 md:px-6 md:pb-6 md:pt-3 lg:px-8'
+                            : 'px-4 pb-6 pt-4 md:px-6 md:pb-8 md:pt-5 lg:px-8 lg:pb-10'
+                    }`}
+                >
+                    <div className={`${isChatPage ? 'h-full' : 'mx-auto h-full max-w-[1600px]'}`}>
                         {children}
                     </div>
                 </main>

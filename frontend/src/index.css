@@ -1,74 +1,189 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-heading: "Space Grotesk", sans-serif;
-  --font-body: "DM Sans", sans-serif;
+  --font-heading: "Manrope", sans-serif;
+  --font-body: "Inter", sans-serif;
 
-  --color-primary: #1E293B;
-  --color-secondary: #334155;
-  --color-cta: #22C55E;
-  --color-background-dark: #0F172A;
-  --color-background-light: #F5F7FA;
-  --color-text-dark: #F8FAFC;
-  --color-text-light: #1E293B;
+  --color-primary: #0d631b;
+  --color-primary-container: #2e7d32;
+  --color-secondary: #4c616c;
+  --color-tertiary: #006156;
+  --color-background-light: #f8f9fa;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f3f4f5;
+  --color-surface-subtle: #edeeef;
+  --color-outline: #bfcaba;
+  --color-outline-strong: #707a6c;
+  --color-text-light: #191c1d;
+  --color-text-muted: #40493d;
+  --color-danger: #ba1a1a;
 
-  --radius-xl: 12px;
-  --radius-2xl: 16px;
+  --radius-xl: 8px;
+  --radius-2xl: 12px;
 
-  --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
-  --shadow-lg: 0 10px 15px rgba(0,0,0,0.1);
-  --shadow-xl: 0 20px 25px rgba(0,0,0,0.15);
+  --shadow-md: 0 8px 20px rgba(25, 28, 29, 0.05);
+  --shadow-lg: 0 14px 34px rgba(25, 28, 29, 0.08);
+  --shadow-xl: 0 18px 44px rgba(25, 28, 29, 0.1);
 }
 
 :root {
+  --shell-page: linear-gradient(180deg, #f8f9fa 0%, #f2f4f5 100%);
+  --shell-sidebar: rgba(241, 245, 249, 0.82);
+  --shell-header: rgba(255, 255, 255, 0.82);
+  --shell-border: rgba(191, 202, 186, 0.9);
+  --shell-panel-bg: rgba(255, 255, 255, 0.96);
+  --shell-panel-muted: rgba(243, 244, 245, 0.98);
+  --shell-panel-subtle: rgba(237, 238, 239, 0.92);
+  --shell-shadow: 0 10px 26px rgba(25, 28, 29, 0.05);
+  --shell-shadow-strong: 0 16px 36px rgba(25, 28, 29, 0.08);
+
   font-family: var(--font-body);
-  background-color: var(--color-background-light);
+  background: var(--shell-page);
   color: var(--color-text-light);
   color-scheme: light;
 }
 
-h1, h2, h3, h4, h5, h6 {
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--shell-page);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-heading);
 }
 
-/* Global utility for cards from design system */
-.card-glass {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(226, 232, 240, 0.5);
-  border-radius: var(--radius-xl);
-  padding: 1.5rem;
-  box-shadow: var(--shadow-md);
-  transition: all 0.2s ease;
+::selection {
+  background: rgba(13, 99, 27, 0.16);
+  color: #191c1d;
 }
 
-.dark .card-glass {
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(51, 65, 85, 0.5);
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(46, 125, 50, 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgba(0, 97, 86, 0.08), transparent 24%),
+    var(--shell-page);
+}
+
+.app-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(191, 202, 186, 0.22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(191, 202, 186, 0.22) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.1), transparent 76%);
+  opacity: 0.24;
+}
+
+.shell-panel {
+  border: 1px solid var(--shell-border);
+  background: var(--shell-panel-bg);
+  backdrop-filter: blur(12px);
+  border-radius: 8px;
+  box-shadow: var(--shell-shadow);
+}
+
+.shell-panel-strong {
+  border: 1px solid var(--shell-border);
+  background: var(--shell-header);
+  backdrop-filter: blur(14px);
+  border-radius: 8px;
+  box-shadow: var(--shell-shadow-strong);
+}
+
+.shell-panel-muted {
+  border: 1px solid rgba(191, 202, 186, 0.7);
+  background: var(--shell-panel-muted);
+  backdrop-filter: blur(8px);
+  border-radius: 8px;
+  box-shadow: 0 8px 18px rgba(25, 28, 29, 0.04);
+}
+
+.shell-outline {
+  border: 1px solid rgba(191, 202, 186, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.card-glass {
+  background: var(--shell-panel-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(191, 202, 186, 0.7);
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 12px 28px rgba(25, 28, 29, 0.06);
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
 .card-glass:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
+  box-shadow: 0 16px 34px rgba(25, 28, 29, 0.08);
+  border-color: rgba(13, 99, 27, 0.24);
 }
 
-/* Button variants */
 .btn-cta {
-  background-color: var(--color-cta);
+  background: linear-gradient(135deg, #0d631b 0%, #2e7d32 100%);
   color: white;
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 1.25rem;
   border-radius: 8px;
   font-weight: 600;
-  transition: all 0.2s ease;
+  transition: transform 180ms ease, box-shadow 180ms ease, opacity 180ms ease;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  box-shadow: 0 12px 24px rgba(13, 99, 27, 0.2);
 }
 
 .btn-cta:hover {
-  opacity: 0.9;
   transform: translateY(-1px);
+  opacity: 0.96;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(112, 122, 108, 0.55) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  background-color: rgba(112, 122, 108, 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

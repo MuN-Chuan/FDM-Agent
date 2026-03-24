@@ -638,7 +638,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
     const { agentStatus, capabilities, connect: connectAgent, disconnect: disconnectAgent } = useClientAgent();
 
     return (
-        <div className="-m-8 relative flex h-[calc(100vh-64px)] overflow-hidden bg-background-light dark:bg-background-dark">
+        <div className="shell-panel relative flex h-full min-h-0 overflow-hidden">
             <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageFile} />
             <input
                 ref={presetInputRef}
@@ -657,8 +657,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
             />
 
             <div className="relative flex min-w-0 flex-1 flex-col">
-                {/* Agent status bar */}
-                <div className="flex items-center justify-end px-4 py-1 border-b border-secondary/10">
+                <div className="flex items-center justify-end border-b border-slate-200/70 bg-white/55 px-4 py-2 backdrop-blur">
                     <ClientAgentIndicator
                         status={agentStatus}
                         printerHost={capabilities?.printer_host}
