@@ -179,6 +179,15 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                                 <span>{t('chat.defectRecognition')}</span>
                             </button>
 
+                            <button
+                                type="button"
+                                onClick={onOpenSlicerModal}
+                                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-[var(--color-primary)] transition-colors hover:bg-white/70"
+                            >
+                                <FileBox size={17} />
+                                <span>{t('chat.uploadSlicer')}</span>
+                            </button>
+
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3 lg:justify-end">

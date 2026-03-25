@@ -97,8 +97,10 @@ function renderAssistantContent(content: string, t: (key: string) => string) {
         return (
             <p
                 key={index}
-                className={`my-4 leading-8 ${
-                    index === 0 ? 'text-base font-medium text-[var(--color-text-light)]' : 'text-sm text-slate-700'
+                className={`leading-8 ${
+                    index === 0 
+                        ? 'mt-0 mb-4 text-base font-medium text-[var(--color-text-light)]' 
+                        : 'my-4 text-sm text-slate-700'
                 }`}
             >
                 {normalizedBlock}
@@ -278,7 +280,7 @@ function AssistantMessage({
                         </div>
                     )}
 
-                    <div className="px-8 py-8">
+                    <div className="px-8 pb-8 pt-1">
                         <div className="max-w-none font-body">{renderAssistantContent(message.content, t)}</div>
                         {message.isStreaming && (
                             <span className="ml-1 inline-block h-4 w-1 animate-pulse bg-[var(--color-primary)] align-middle" />
@@ -317,12 +319,8 @@ function AssistantMessage({
                                         <div className="bg-white">
                                             <ParameterDiffViewer modifications={message.modifications} />
                                         </div>
-                                        <div className="bg-[#edf3eb] px-8 py-8">
-                                            <p className="text-[15px] italic leading-7 text-slate-700">
-                                                {t('chat.reasoningLabel')}: Lowering the nozzle temperature and adjusting flow-related parameters
-                                                reduces thermal overload while improving print stability.
-                                            </p>
-                                            <div className="mt-5 flex flex-wrap gap-3">
+                                        <div className="bg-[#edf3eb] px-8 py-6">
+                                            <div className="flex flex-wrap gap-3">
                                                 <button
                                                     type="button"
                                                     onClick={() => void onDownloadPresets(message.modifications)}
