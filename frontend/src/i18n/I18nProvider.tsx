@@ -1,4 +1,7 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect } from 'react';
+import i18n from 'i18next';
+import LanguageDetector from 'i18next-browser-languagedetector';
+import { I18nextProvider, initReactI18next, useTranslation } from 'react-i18next';
 
 type Locale = 'zh' | 'en';
 
@@ -13,6 +16,9 @@ const zhMessages: Messages = {
     'topbar.points': '\u79ef\u5206',
     'topbar.lang.zh': '\u4e2d\u6587',
     'topbar.lang.en': 'English',
+    'sidebar.brandSubtitle': 'Engineering Workbench',
+    'sidebar.historyRecentShort': '\u6700\u8fd1',
+    'sidebar.newShort': '\u65b0\u5efa',
     'sidebar.tools': '\u5de5\u5177',
     'sidebar.history': '\u5386\u53f2',
     'sidebar.dashboard': '\u9996\u9875 / \u5de5\u4f5c\u53f0',
@@ -100,6 +106,29 @@ const zhMessages: Messages = {
     'chat.feedbackSubmitted': '\u53cd\u9988\u5df2\u63d0\u4ea4\uff0c\u611f\u8c22\u4f60\u7684\u5e2e\u52a9\u3002',
     'chat.feedbackSubmitError': '\u53cd\u9988\u63d0\u4ea4\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002',
     'chat.feedbackImageError': '\u53cd\u9988\u56fe\u7247\u8bfb\u53d6\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002',
+    'chat.imageAttachment': '\u56fe\u7247\u9644\u4ef6',
+    'chat.modelLabel': '\u6a21\u578b',
+    'chat.sendAnalysis': '\u53d1\u9001\u5206\u6790',
+    'chat.view': '\u67e5\u770b',
+    'chat.slicerUploadHint': '\u8bf7\u4f7f\u7528\u804a\u5929\u6846\u4e0b\u65b9\u7684 "3MF \u9884\u8bbe\u4f18\u5316" \u4e13\u5c5e\u6309\u94ae\u4e0a\u4f20 3MF \u6587\u4ef6\u3002',
+    'chat.reportTitle': '\u8bca\u65ad\u67b6\u6784',
+    'chat.reportStreamingSuffix': '\u6d41\u5f0f\u751f\u6210\u4e2d',
+    'chat.analysisStable': '\u7a33\u5b9a\u5206\u6790',
+    'chat.hideProcess': '\u9690\u85cf\u601d\u8003\u8fc7\u7a0b',
+    'chat.showProcess': '\u663e\u793a\u601d\u8003\u8fc7\u7a0b',
+    'chat.reasoningChain': '\u6838\u5fc3\u63a8\u7406\u94fe',
+    'chat.technicalSummary': '\u6280\u672f\u6458\u8981',
+    'chat.thinkingProcess': '\u601d\u8003\u8fc7\u7a0b',
+    'chat.tokensLabel': 'Tokens',
+    'chat.cacheLabel': '\u7f13\u5b58',
+    'chat.suggestedOptimization': '\u5efa\u8bae\u53c2\u6570\u4f18\u5316',
+    'chat.lowRisk': '\u4f4e\u98ce\u9669',
+    'chat.reasoningLabel': '\u539f\u56e0',
+    'chat.generate3mf': '\u751f\u6210 3MF',
+    'chat.noParameterChanges': '\u8fd9\u6761\u56de\u7b54\u6ca1\u6709\u751f\u6210\u53ef\u5e94\u7528\u7684\u53c2\u6570\u53d8\u66f4\u3002',
+    'chat.parameter': '\u53c2\u6570',
+    'chat.current': '\u5f53\u524d\u503c',
+    'chat.proposed': '\u5efa\u8bae\u503c',
     'defect.title': '\u6253\u5370\u7f3a\u9677\u8bc6\u522b',
     'defect.subtitle': '\uff08\u4ec5\u4f9b\u53c2\u8003\uff09',
     'defect.uploadTitle': '\u70b9\u51fb\u4e0a\u4f20\u56fe\u7247\u8fdb\u884c\u8bc6\u522b',
@@ -151,6 +180,9 @@ const enMessages: Messages = {
     'topbar.points': 'Points',
     'topbar.lang.zh': '中文',
     'topbar.lang.en': 'English',
+    'sidebar.brandSubtitle': 'Engineering Workbench',
+    'sidebar.historyRecentShort': 'Recent',
+    'sidebar.newShort': 'New',
     'sidebar.tools': 'Tools',
     'sidebar.history': 'History',
     'sidebar.dashboard': 'Home / Workspace',
@@ -238,6 +270,29 @@ const enMessages: Messages = {
     'chat.feedbackSubmitted': 'Feedback submitted. Thank you for helping us improve.',
     'chat.feedbackSubmitError': 'Failed to submit feedback. Please try again later.',
     'chat.feedbackImageError': 'Failed to read the feedback image. Please try again.',
+    'chat.imageAttachment': 'Image Attachment',
+    'chat.modelLabel': 'Model',
+    'chat.sendAnalysis': 'Send Analysis',
+    'chat.view': 'View',
+    'chat.slicerUploadHint': 'Please use the dedicated "3MF Preset Optimization" button below the chat box to upload 3MF files.',
+    'chat.reportTitle': 'Diagnostic Architecture',
+    'chat.reportStreamingSuffix': 'Streaming',
+    'chat.analysisStable': 'Stable Analysis',
+    'chat.hideProcess': 'Hide Process',
+    'chat.showProcess': 'Show Process',
+    'chat.reasoningChain': 'Core Reasoning Chain',
+    'chat.technicalSummary': 'Technical Summary',
+    'chat.thinkingProcess': 'Thinking Process',
+    'chat.tokensLabel': 'Tokens',
+    'chat.cacheLabel': 'Cache',
+    'chat.suggestedOptimization': 'Suggested Parameter Optimization',
+    'chat.lowRisk': 'Low Risk',
+    'chat.reasoningLabel': 'Reasoning',
+    'chat.generate3mf': 'Generate 3MF',
+    'chat.noParameterChanges': 'No parameter changes were generated for this answer.',
+    'chat.parameter': 'Parameter',
+    'chat.current': 'Current',
+    'chat.proposed': 'Proposed',
     'defect.title': 'Print Defect Recognition',
     'defect.subtitle': '(for reference only)',
     'defect.uploadTitle': 'Click to upload an image for recognition',
@@ -282,51 +337,75 @@ const enMessages: Messages = {
 
 const messages: Record<Locale, Messages> = { zh: zhMessages, en: enMessages };
 
-interface I18nContextValue {
-    locale: Locale;
-    setLocale: (locale: Locale) => void;
-    t: (key: string, params?: Record<string, string | number>) => string;
+const resources = {
+    zh: { translation: zhMessages },
+    en: { translation: enMessages },
+} as const;
+
+function normalizeLocale(value?: string): Locale {
+    return value?.toLowerCase().startsWith('en') ? 'en' : 'zh';
 }
 
-const I18nContext = createContext<I18nContextValue | null>(null);
-
-function interpolate(template: string, params?: Record<string, string | number>) {
-    if (!params) {
-        return template;
-    }
-
-    return Object.entries(params).reduce(
-        (result, [key, value]) => result.replaceAll(`{${key}}`, String(value)),
-        template,
-    );
+if (!i18n.isInitialized) {
+    void i18n
+        .use(LanguageDetector)
+        .use(initReactI18next)
+        .init({
+            resources,
+            fallbackLng: 'zh',
+            supportedLngs: ['zh', 'en'],
+            load: 'languageOnly',
+            nonExplicitSupportedLngs: true,
+            debug: false,
+            defaultNS: 'translation',
+            ns: ['translation'],
+            returnNull: false,
+            detection: {
+                order: ['localStorage', 'navigator'],
+                caches: ['localStorage'],
+                lookupLocalStorage: 'fdm_locale',
+            },
+            interpolation: {
+                escapeValue: false,
+                prefix: '{',
+                suffix: '}',
+            },
+        });
 }
 
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [locale, setLocaleState] = useState<Locale>(() => {
-        const stored = localStorage.getItem('fdm_locale');
-        return stored === 'en' ? 'en' : 'zh';
-    });
-
     useEffect(() => {
-        localStorage.setItem('fdm_locale', locale);
-    }, [locale]);
+        const syncDocumentLang = (language: string) => {
+            document.documentElement.lang = normalizeLocale(language);
+        };
 
-    const value = useMemo<I18nContextValue>(
-        () => ({
-            locale,
-            setLocale: setLocaleState,
-            t: (key, params) => interpolate(messages[locale][key] || zhMessages[key] || key, params),
-        }),
-        [locale],
-    );
+        syncDocumentLang(i18n.resolvedLanguage || i18n.language);
+        i18n.on('languageChanged', syncDocumentLang);
 
-    return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+        return () => {
+            i18n.off('languageChanged', syncDocumentLang);
+        };
+    }, []);
+
+    return <I18nextProvider i18n={i18n}>{children}</I18nextProvider>;
 };
 
 export function useI18n() {
-    const context = useContext(I18nContext);
-    if (!context) {
-        throw new Error('useI18n must be used within I18nProvider');
-    }
-    return context;
+    const { t: translate, i18n: instance } = useTranslation();
+    const locale = normalizeLocale(instance.resolvedLanguage || instance.language);
+
+    const setLocale = useCallback((nextLocale: Locale) => {
+        void instance.changeLanguage(nextLocale);
+    }, [instance]);
+
+    const t = useCallback(
+        (key: string, params?: Record<string, string | number>) =>
+            translate(key, {
+                ...params,
+                defaultValue: messages.zh[key] || key,
+            }),
+        [translate],
+    );
+
+    return { locale, setLocale, t };
 }

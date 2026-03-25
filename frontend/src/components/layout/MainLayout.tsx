@@ -28,14 +28,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     const isChatPage = currentPage === 'chat';
 
     return (
-        <div className="app-shell flex min-h-screen bg-transparent text-[var(--color-text-light)]">
+        <div className="app-shell flex h-screen overflow-hidden bg-transparent text-[var(--color-text-light)]">
             <Sidebar
                 currentPage={currentPage}
                 onNavigate={onNavigate}
                 currentSessionId={currentSessionId}
                 onSessionChange={onSessionChange}
             />
-            <div className="flex min-h-screen min-w-0 flex-1 flex-col overflow-hidden lg:pl-64">
+            <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden lg:pl-56">
                 <Topbar
                     currentPage={currentPage}
                     isBorderless={currentPage === 'chat'}

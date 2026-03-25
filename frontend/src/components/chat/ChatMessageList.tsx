@@ -39,7 +39,7 @@ function shouldShowModificationShortcut(content: string) {
     return /(\u53c2\u6570|\u4f18\u5316|\u5efa\u8bae|\u5207\u7247|parameter|optimi|suggest|slice)/i.test(content);
 }
 
-function renderAssistantContent(content: string) {
+function renderAssistantContent(content: string, t: (key: string) => string) {
     const blocks = content.split('\n\n');
 
     return blocks.map((block, index) => {
@@ -68,16 +68,24 @@ function renderAssistantContent(content: string) {
             );
         }
 
+        if (normalizedBlock.startsWith('#### ')) {
+            return (
+                <h4 key={index} className="mt-5 text-sm font-bold uppercase tracking-[0.14em] text-slate-700">
+                    {normalizedBlock.replace('#### ', '')}
+                </h4>
+            );
+        }
+
         if (normalizedBlock.startsWith('- ') || normalizedBlock.startsWith('* ')) {
             return (
                 <div
                     key={index}
-                    className="my-5 border-l-[3px] border-[var(--color-tertiary)] bg-[#e7e8e9] px-5 py-4"
+                    className="my-5 rounded border-l-4 border-[var(--color-tertiary)] bg-[#e7e8e9] p-4"
                 >
-                    <div className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-[var(--color-tertiary)]">
-                        Technical Summary
+                    <div className="mb-2 text-xs font-bold uppercase tracking-widest text-[var(--color-tertiary)]">
+                        {t('chat.technicalSummary')}
                     </div>
-                    <ul className="space-y-3 pl-5 text-[15px] leading-8 text-slate-700 marker:text-slate-600">
+                    <ul className="ml-4 list-disc space-y-2 text-sm text-slate-700 marker:text-slate-600">
                         {normalizedBlock.split('\n').map((line, lineIndex) => (
                             <li key={lineIndex}>{line.replace(/^[-*]\s/, '')}</li>
                         ))}
@@ -89,8 +97,8 @@ function renderAssistantContent(content: string) {
         return (
             <p
                 key={index}
-                className={`my-4 text-[15px] leading-8 ${
-                    index === 0 ? 'font-medium text-[var(--color-text-light)]' : 'text-slate-700'
+                className={`my-4 leading-8 ${
+                    index === 0 ? 'text-base font-medium text-[var(--color-text-light)]' : 'text-sm text-slate-700'
                 }`}
             >
                 {normalizedBlock}
@@ -218,70 +226,75 @@ function AssistantMessage({
 
     return (
         <div className="w-full space-y-3">
-            {message.thought && (
-                <div className="overflow-hidden bg-[var(--color-surface-muted)]">
-                    <button
-                        type="button"
-                        onClick={() => setThoughtOpen((value) => !value)}
-                        className="flex w-full items-center justify-between px-4 py-3 text-left"
-                    >
-                        <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                            <Brain size={14} className="text-[var(--color-tertiary)]" />
-                            <span>{t('chat.thought')}</span>
-                        </div>
-                        {thoughtOpen ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
-                    </button>
-                    {thoughtOpen && (
-                        <div className="px-4 py-3 text-sm italic leading-7 text-slate-500">
-                            {message.thought}
-                            {message.isStreaming && !message.content && (
-                                <span className="ml-1 inline-block h-3 w-1 animate-pulse bg-[var(--color-primary)] align-middle" />
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
 
             {!!message.content && (
                 <article className="w-full overflow-hidden bg-white">
-                    <div className="flex flex-col gap-4 bg-white px-6 py-5 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex flex-col gap-4 bg-white px-8 py-6 lg:flex-row lg:items-start lg:justify-between">
                         <div className="flex items-start gap-4">
                             <div className="flex h-11 w-11 items-center justify-center bg-[rgba(13,99,27,0.12)] text-[var(--color-primary)]">
                                 <Sparkles size={18} className={message.isStreaming ? 'animate-pulse' : ''} />
                             </div>
                             <div>
-                                <h3 className="font-heading text-[1.05rem] font-extrabold tracking-[-0.01em] text-slate-950">
-                                    DIAGNOSTIC ARCHITECTURE
-                                    {message.isStreaming ? ' - Streaming' : ''}
+                                <h3 className="font-heading text-lg font-extrabold tracking-[-0.01em] text-slate-950">
+                                    {t('chat.reportTitle')}
+                                    {message.isStreaming ? ` - ${t('chat.reportStreamingSuffix')}` : ''}
                                 </h3>
-                                <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
-                                    Model: {message.modelName || 'Engineering-v4'}
+                                <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                                    {t('chat.modelLabel')}: {message.modelName || 'Engineering-v4'}
                                 </p>
                             </div>
                         </div>
 
-                        <div className="inline-flex items-center bg-[rgba(0,97,86,0.08)] px-3 py-1.5 text-sm font-medium uppercase tracking-[0.08em] text-[var(--color-tertiary)]">
-                            Stable Analysis
+                        <div className="flex items-center gap-3">
+                            {message.thought && (
+                                <button
+                                    type="button"
+                                    onClick={() => setThoughtOpen((value) => !value)}
+                                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+                                >
+                                    <Brain size={12} className="text-[var(--color-tertiary)]" />
+                                    <span>{thoughtOpen ? t('chat.hideProcess') : t('chat.showProcess')}</span>
+                                    {thoughtOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                </button>
+                            )}
+                            <div className="inline-flex items-center bg-[rgba(0,97,86,0.08)] px-3 py-1.5 text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-tertiary)]">
+                                {t('chat.analysisStable')}
+                            </div>
                         </div>
                     </div>
 
-                    <div className="px-6 py-6">
-                        <div className="max-w-none font-body">{renderAssistantContent(message.content)}</div>
+                    {message.thought && thoughtOpen && (
+                        <div className="mx-8 mb-4 border-l-2 border-slate-100 bg-slate-50/50 px-6 py-5">
+                            <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                                <Brain size={12} />
+                                <span>{t('chat.reasoningChain')}</span>
+                            </div>
+                            <div className="text-sm italic leading-8 text-slate-600">
+                                {message.thought}
+                                {message.isStreaming && !message.content && (
+                                    <span className="ml-1 inline-block h-3 w-1 animate-pulse bg-[var(--color-primary)] align-middle" />
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="px-8 py-8">
+                        <div className="max-w-none font-body">{renderAssistantContent(message.content, t)}</div>
                         {message.isStreaming && (
                             <span className="ml-1 inline-block h-4 w-1 animate-pulse bg-[var(--color-primary)] align-middle" />
                         )}
 
                         {!message.isStreaming && message.usage && (
                             <div className="mt-8 flex flex-wrap items-center gap-3 pt-4 text-[11px] text-slate-400">
-                                <span className="font-semibold uppercase tracking-[0.14em]">Thinking Process</span>
-                                <span>Tokens: {message.usage.total_tokens}</span>
-                                {message.usage.cache_tokens ? <span>Cache: {message.usage.cache_tokens}</span> : null}
+                                <span className="font-semibold uppercase tracking-[0.14em]">{t('chat.thinkingProcess')}</span>
+                                <span>{t('chat.tokensLabel')}: {message.usage.total_tokens}</span>
+                                {message.usage.cache_tokens ? <span>{t('chat.cacheLabel')}: {message.usage.cache_tokens}</span> : null}
                             </div>
                         )}
                     </div>
 
                     {message.modifications && message.modifications.length > 0 && (
-                        <div className="px-6 pb-6">
+                        <div className="px-8 pb-8">
                             <div className="overflow-hidden bg-[#edf3eb]">
                                 <button
                                     type="button"
@@ -289,11 +302,11 @@ function AssistantMessage({
                                     className="flex w-full items-center justify-between bg-[#edf3eb] px-5 py-4"
                                 >
                                     <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.16em] text-[var(--color-primary)]">
-                                        <span>Suggested Parameter Optimization</span>
+                                        <span>{t('chat.suggestedOptimization')}</span>
                                     </div>
                                     <div className="inline-flex items-center gap-2">
                                         <span className="rounded-full bg-[var(--color-primary)] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-white">
-                                            Low Risk
+                                            {t('chat.lowRisk')}
                                         </span>
                                         {modificationsOpen ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
                                     </div>
@@ -304,9 +317,9 @@ function AssistantMessage({
                                         <div className="bg-white">
                                             <ParameterDiffViewer modifications={message.modifications} />
                                         </div>
-                                        <div className="bg-[#edf3eb] px-5 py-5">
+                                        <div className="bg-[#edf3eb] px-8 py-8">
                                             <p className="text-[15px] italic leading-7 text-slate-700">
-                                                Reasoning: Lowering the nozzle temperature and adjusting flow-related parameters
+                                                {t('chat.reasoningLabel')}: Lowering the nozzle temperature and adjusting flow-related parameters
                                                 reduces thermal overload while improving print stability.
                                             </p>
                                             <div className="mt-5 flex flex-wrap gap-3">
@@ -325,7 +338,7 @@ function AssistantMessage({
                                                     className="inline-flex min-w-[200px] items-center justify-center gap-2 bg-white px-5 py-3 text-sm font-semibold text-[var(--color-primary)] transition-colors hover:bg-[rgba(255,255,255,0.72)]"
                                                 >
                                                     <FileBox size={15} />
-                                                    Generate 3MF
+                                                    {t('chat.generate3mf')}
                                                 </button>
                                             </div>
                                         </div>
@@ -521,16 +534,16 @@ function UserMessage({
 
     return (
         <div className="flex justify-end">
-            <div className="w-full max-w-[820px] space-y-3">
-                <div className="bg-[#f0f0ef] px-5 py-5">
+            <div className="w-full max-w-[80%] space-y-3">
+                <div className="rounded-lg border-r-4 border-slate-300 bg-[#f3f4f5] px-5 py-5 shadow-sm">
                     {!isEditing ? (
                         <div className="space-y-4">
-                            <p className="whitespace-pre-wrap text-[15px] leading-8 text-slate-800">{message.content}</p>
+                            <p className="whitespace-pre-wrap text-sm leading-8 text-slate-800">{message.content}</p>
 
                             {(message.imagePreviewUrl || message.presetName || message.attachedFiles?.length || message.slicerResult) && (
                                 <div className="flex flex-wrap gap-3">
                                     {message.imagePreviewUrl && (
-                                        <AttachmentBadge label="Image Attachment" />
+                                        <AttachmentBadge label={t('chat.imageAttachment')} />
                                     )}
                                     {message.presetName && <AttachmentBadge label={message.presetName} />}
                                     {message.slicerResult && <AttachmentBadge label={`3MF ${message.slicerResult.printer_model || 'Project'}`} />}
@@ -592,7 +605,7 @@ function UserMessage({
 }
 
 const AttachmentBadge: React.FC<{ label: string }> = ({ label }) => (
-    <div className="inline-flex items-center gap-2 bg-[rgba(255,255,255,0.72)] px-3 py-2 text-xs text-slate-700">
+    <div className="inline-flex items-center gap-2 bg-[#e1e3e4] px-3 py-2 text-xs text-slate-700">
         <FileBox size={14} className="text-slate-500" />
         <span className="max-w-[220px] truncate">{label}</span>
     </div>
@@ -610,7 +623,7 @@ export const ChatMessageList: React.FC<ChatMessageListProps> = ({
     bottomRef,
 }) => (
     <div className="custom-scrollbar relative flex-1 overflow-y-auto pb-[34vh] pt-8">
-        <div className="mx-auto w-full max-w-[1140px] space-y-8 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto w-full max-w-5xl space-y-8 px-4 sm:px-6 lg:px-8">
             {messages.map((message, index) => {
                 if (message.role === 'user') {
                     return <UserMessage key={message.id} message={message} onEditMessage={onEditMessage} />;

@@ -189,7 +189,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
         const nextFiles: PendingFile[] = [];
         for (const file of files) {
             if (file.name.toLowerCase().endsWith('.3mf')) {
-                alert('请使用聊天框下方的 "3MF 预设优化" 专属按钮上传 3MF 文件。');
+                alert(t('chat.slicerUploadHint'));
                 continue;
             }
             try {

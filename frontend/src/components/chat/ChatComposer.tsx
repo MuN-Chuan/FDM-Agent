@@ -4,7 +4,7 @@ import {
     Camera,
     FileBox,
     FileText,
-    Image as ImageIcon,
+    ImageIcon,
     Loader2,
     Package,
     Paperclip,
@@ -81,15 +81,15 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     const canSubmit = !!input.trim() || !!pendingImage || pendingFiles.length > 0 || !!pendingSlicerResult;
 
     return (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 px-4 pb-5 sm:px-6 lg:px-8">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-5 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-5xl">
-                <div className="pointer-events-auto overflow-hidden bg-white shadow-[0_10px_28px_rgba(25,28,29,0.04)]">
+                <div className="pointer-events-auto overflow-hidden border border-slate-300 bg-[var(--color-background-light)] shadow-[0_10px_28px_rgba(25,28,29,0.04)]">
                     {(pendingImage || presetFileName || pendingFiles.length > 0 || pendingSlicerResult) && (
-                        <div className="flex flex-wrap gap-3 bg-[#f3f4f5] px-5 py-4">
+                        <div className="flex flex-wrap gap-3 bg-[#e7e8e9] px-5 py-3">
                             {pendingImage && (
                                 <AttachmentChip
                                     icon={<ImageIcon size={18} className="text-slate-600" />}
-                                    label="Image Attachment"
+                                    label={t('chat.imageAttachment')}
                                     preview={pendingImage.previewUrl}
                                     onRemove={() => imageInputRef.current && imageInputRef.current.value === ''}
                                     hideRemove
@@ -137,13 +137,13 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                                 void onSubmit();
                             }
                         }}
-                        placeholder="Describe the engineering problem or upload telemetry data..."
+                        placeholder={t('chat.inputPlaceholder')}
                         rows={1}
                         disabled={isStreaming}
-                        className="min-h-[160px] max-h-[320px] w-full resize-none border-0 bg-white px-6 py-6 text-[15px] leading-8 text-slate-800 outline-none placeholder:text-[15px] placeholder:text-slate-500 disabled:opacity-50"
+                        className="min-h-[100px] max-h-[320px] w-full resize-none border-0 bg-[var(--color-background-light)] px-5 py-4 text-sm leading-8 text-slate-800 outline-none placeholder:text-sm placeholder:text-slate-500 disabled:opacity-50"
                     />
 
-                    <div className="flex flex-col gap-4 bg-[#f3f4f5] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex flex-col gap-4 border-t border-slate-300 bg-[#edf2f7] px-5 py-3 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex flex-wrap items-center gap-3">
                             <div className="flex items-center gap-1 text-slate-500">
                                 <IconButton
@@ -185,9 +185,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                             <button
                                 type="button"
                                 onClick={onOpenSettings}
-                                className="inline-flex items-center gap-2 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-[#fbfbfa]"
+                                className="inline-flex items-center gap-2 bg-[var(--color-surface)] px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-[#fbfbfa]"
                             >
-                                <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Model</span>
+                                <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">{t('chat.modelLabel')}</span>
                                 <span className="font-semibold">{modelName}</span>
                                 <Settings2 size={15} className="text-slate-500" />
                             </button>
@@ -210,7 +210,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                                 }`}
                             >
                                 {isStreaming ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                                <span>Send Analysis</span>
+                                <span>{t('chat.sendAnalysis')}</span>
                             </button>
                         </div>
                     </div>
@@ -247,44 +247,48 @@ const AttachmentChip: React.FC<{
     hideRemove?: boolean;
     onPrimaryAction?: () => void;
     onRemove?: () => void;
-}> = ({ icon, label, preview, accent = false, hideRemove = false, onPrimaryAction, onRemove }) => (
-    <div
-        className={`flex min-w-[240px] items-center gap-3 px-4 py-3 ${
-            accent
-                ? 'bg-[rgba(13,99,27,0.08)]'
-                : 'bg-[var(--color-surface-muted)]'
-        }`}
-    >
-        {preview ? (
-            <img src={preview} alt={label} className="h-11 w-11 object-cover" />
-        ) : (
-            <div className="flex h-11 w-11 items-center justify-center bg-white">
-                {icon}
+}> = ({ icon, label, preview, accent = false, hideRemove = false, onPrimaryAction, onRemove }) => {
+    const { t } = useI18n();
+
+    return (
+        <div
+            className={`flex min-w-[240px] items-center gap-3 px-4 py-2 ${
+                accent
+                    ? 'bg-[rgba(13,99,27,0.08)]'
+                    : 'bg-[#e7e8e9]'
+            }`}
+        >
+            {preview ? (
+                <img src={preview} alt={label} className="h-11 w-11 object-cover" />
+            ) : (
+                <div className="flex h-11 w-11 items-center justify-center bg-[var(--color-surface)]">
+                    {icon}
+                </div>
+            )}
+
+            <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-slate-700">{label}</p>
             </div>
-        )}
 
-        <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-slate-700">{label}</p>
+            {onPrimaryAction ? (
+                <button
+                    type="button"
+                    onClick={onPrimaryAction}
+                    className="px-2 py-1 text-xs font-semibold text-[var(--color-primary)] transition-colors hover:bg-white"
+                >
+                    {t('chat.view')}
+                </button>
+            ) : null}
+
+            {!hideRemove && onRemove ? (
+                <button
+                    type="button"
+                    onClick={onRemove}
+                    className="p-1 text-slate-400 transition-colors hover:bg-white hover:text-slate-700"
+                >
+                    <X size={15} />
+                </button>
+            ) : null}
         </div>
-
-        {onPrimaryAction ? (
-            <button
-                type="button"
-                onClick={onPrimaryAction}
-                className="px-2 py-1 text-xs font-semibold text-[var(--color-primary)] transition-colors hover:bg-white"
-            >
-                View
-            </button>
-        ) : null}
-
-        {!hideRemove && onRemove ? (
-            <button
-                type="button"
-                onClick={onRemove}
-                className="p-1 text-slate-400 transition-colors hover:bg-white hover:text-slate-700"
-            >
-                <X size={15} />
-            </button>
-        ) : null}
-    </div>
-);
+    );
+};

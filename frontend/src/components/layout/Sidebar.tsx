@@ -24,7 +24,7 @@ interface SidebarProps {
 
 interface SidebarNavItem {
     icon: React.ElementType;
-    label: string;
+    labelKey: string;
     page?: AppPage;
     isActive: boolean;
     isDisabled?: boolean;
@@ -83,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
     const navItems: SidebarNavItem[] = [
         {
             icon: MessageSquareQuote,
-            label: 'AI Q&A',
+            labelKey: 'sidebar.chat',
             page: 'chat',
             isActive: currentPage === 'chat' && !historyExpanded,
             onClick: () => {
@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
         },
         {
             icon: History,
-            label: 'History',
+            labelKey: 'sidebar.history',
             isActive: historyExpanded && currentPage === 'chat',
             onClick: () => {
                 onNavigate('chat');
@@ -102,13 +102,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
         },
         {
             icon: SlidersHorizontal,
-            label: 'Preset Management',
+            labelKey: 'sidebar.presets',
             isActive: false,
             isDisabled: true,
         },
         {
             icon: FileText,
-            label: 'Report Center',
+            labelKey: 'sidebar.reports',
             page: 'developer',
             isActive: currentPage === 'developer',
             onClick: () => {
@@ -118,22 +118,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
         },
         {
             icon: CreditCard,
-            label: 'Subscription Center',
+            labelKey: 'sidebar.subscription',
             isActive: false,
             isDisabled: true,
         },
     ];
 
     return (
-        <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 shrink-0 bg-[var(--shell-sidebar)] lg:flex lg:flex-col">
+        <aside className="fixed inset-y-0 left-0 z-40 hidden w-56 shrink-0 border-r border-slate-200 bg-[#f0f4f8] lg:flex lg:flex-col">
             <div className="flex items-center gap-3 px-6 py-6">
-                <div className="flex h-8 w-8 items-center justify-center rounded bg-[var(--color-primary)] text-white">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[var(--color-primary)] text-white">
                     <Wrench size={16} />
                 </div>
-                <div>
-                    <h1 className="font-heading text-xl font-bold tracking-tight text-green-950">FDM-Web</h1>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-slate-500">
-                        Engineering Workbench
+                <div className="min-w-0">
+                    <h1 className="truncate font-heading text-lg font-bold tracking-tight text-green-950">FDM-Web</h1>
+                    <p className="truncate text-[10px] font-bold uppercase tracking-[0.28em] text-slate-500">
+                        {t('sidebar.brandSubtitle')}
                     </p>
                 </div>
             </div>
@@ -144,7 +144,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
 
                     return (
                         <button
-                            key={item.label}
+                            key={item.labelKey}
                             type="button"
                             disabled={item.isDisabled}
                             onClick={item.onClick}
@@ -157,46 +157,43 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                             }`}
                         >
                             <Icon size={18} />
-                            <span>{item.label}</span>
+                            <span className="truncate">{t(item.labelKey)}</span>
                         </button>
                     );
                 })}
             </nav>
 
             {historyExpanded && (
-                <section className="mx-4 mb-4 pt-4">
+                <section className="mx-4 mb-4 pt-4 border-t border-slate-200">
                     <div className="flex items-center justify-between gap-3 px-1">
-                        <h2 className="font-heading text-sm font-bold tracking-tight text-slate-900">Recent Sessions</h2>
+                        <h2 className="font-heading text-xs font-bold tracking-tight text-slate-900">{t('sidebar.historyRecentShort')}</h2>
                         <button
                             type="button"
                             onClick={handleNewChat}
-                            className="rounded bg-[var(--color-primary)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition-colors hover:bg-[var(--color-primary-container)]"
+                            className="rounded bg-[var(--color-primary)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white transition-colors hover:bg-[var(--color-primary-container)]"
                         >
-                            {t('sidebar.newChat')}
+                            {t('sidebar.newShort')}
                         </button>
                     </div>
 
-                    <div className="custom-scrollbar mt-3 max-h-64 space-y-1 overflow-y-auto pr-1">
+                    <div className="custom-scrollbar mt-3 max-h-48 space-y-1 overflow-y-auto pr-1 text-xs">
                         {history.length > 0 ? (
                             history.map((item) => (
                                 <button
                                     key={item.id}
                                     type="button"
                                     onClick={() => handleSessionClick(item.id)}
-                                    className={`w-full px-3 py-2 text-left transition-colors ${
+                                    className={`w-full px-2 py-1.5 text-left transition-colors rounded ${
                                         currentSessionId === item.id
                                             ? 'bg-white/70 text-slate-900'
                                             : 'text-slate-600 hover:bg-white/55 hover:text-slate-800'
                                     }`}
                                 >
-                                    <span className="block truncate text-xs font-semibold">{item.title}</span>
-                                    <span className="mt-1 block text-[10px] text-slate-500">
-                                        {new Date(item.timestamp).toLocaleString()}
-                                    </span>
+                                    <span className="block truncate font-medium">{item.title}</span>
                                 </button>
                             ))
                         ) : (
-                            <div className="px-3 py-8 text-center text-xs text-slate-500">
+                            <div className="px-2 py-4 text-center text-[10px] text-slate-400">
                                 {t('sidebar.noSessions')}
                             </div>
                         )}
@@ -210,7 +207,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                     className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-slate-500 transition-colors hover:bg-slate-200/70 hover:text-slate-700"
                 >
                     <CircleHelp size={18} />
-                    <span>{t('sidebar.help')}</span>
+                    <span className="truncate">{t('sidebar.help')}</span>
                 </button>
                 <button
                     type="button"
@@ -218,7 +215,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                     className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-slate-500 transition-colors hover:bg-slate-200/70 hover:text-slate-700"
                 >
                     <Settings size={18} />
-                    <span>{t('sidebar.settings')}</span>
+                    <span className="truncate">{t('sidebar.settings')}</span>
                 </button>
             </div>
         </aside>
