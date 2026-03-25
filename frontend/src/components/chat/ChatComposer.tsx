@@ -83,7 +83,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
     return (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 px-4 pb-5 sm:px-6 lg:px-8">
             <div className="mx-auto max-w-5xl">
-                <div className="pointer-events-auto overflow-hidden border border-slate-300 bg-[var(--color-background-light)] shadow-[0_10px_28px_rgba(25,28,29,0.04)]">
+                <div className="pointer-events-auto rounded-3xl overflow-hidden border border-slate-300 bg-[var(--color-background-light)] shadow-[0_12px_32px_rgba(25,28,29,0.06)]">
                     {(pendingImage || presetFileName || pendingFiles.length > 0 || pendingSlicerResult) && (
                         <div className="flex flex-wrap gap-3 bg-[#e7e8e9] px-5 py-3">
                             {pendingImage && (
@@ -140,10 +140,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                         placeholder={t('chat.inputPlaceholder')}
                         rows={1}
                         disabled={isStreaming}
-                        className="min-h-[100px] max-h-[320px] w-full resize-none border-0 bg-[var(--color-background-light)] px-5 py-4 text-sm leading-8 text-slate-800 outline-none placeholder:text-sm placeholder:text-slate-500 disabled:opacity-50"
+                        className="min-h-[80px] max-h-[320px] w-full resize-none border-0 bg-[var(--color-background-light)] px-5 py-3.5 text-sm leading-7 text-slate-800 outline-none placeholder:text-sm placeholder:text-slate-500 disabled:opacity-50"
                     />
 
-                    <div className="flex flex-col gap-4 border-t border-slate-300 bg-[#edf2f7] px-5 py-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex flex-col gap-3 border-t border-slate-300 bg-[#edf2f7] px-5 py-2.5 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex flex-wrap items-center gap-3">
                             <div className="flex items-center gap-1 text-slate-500">
                                 <IconButton
@@ -203,13 +203,13 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                                 type="button"
                                 onClick={() => void onSubmit()}
                                 disabled={isStreaming || !canSubmit || !!presetValidationError}
-                                className={`inline-flex min-w-[224px] items-center justify-center gap-3 px-5 py-3 text-base font-semibold transition-all ${
+                                className={`inline-flex min-w-[180px] items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold transition-all ${
                                     isStreaming || !canSubmit || !!presetValidationError
                                         ? 'cursor-not-allowed bg-slate-300 text-slate-100'
-                                        : 'bg-[var(--color-primary)] text-white shadow-[0_12px_24px_rgba(13,99,27,0.22)] hover:bg-[var(--color-primary-container)]'
+                                        : 'bg-[var(--color-primary)] text-white shadow-[0_8px_20px_rgba(13,99,27,0.18)] hover:bg-[var(--color-primary-container)] rounded-xl'
                                 }`}
                             >
-                                {isStreaming ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                                {isStreaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                                 <span>{t('chat.sendAnalysis')}</span>
                             </button>
                         </div>
@@ -252,7 +252,7 @@ const AttachmentChip: React.FC<{
 
     return (
         <div
-            className={`flex min-w-[240px] items-center gap-3 px-4 py-2 ${
+            className={`flex min-w-[220px] items-center gap-3 px-3 py-1.5 ${
                 accent
                     ? 'bg-[rgba(13,99,27,0.08)]'
                     : 'bg-[#e7e8e9]'

@@ -37,7 +37,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
             />
             <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden lg:pl-56">
                 <Topbar
-                    currentPage={currentPage}
                     isBorderless={currentPage === 'chat'}
                     currentUser={currentUser}
                     onOpenAuth={onOpenAuth}

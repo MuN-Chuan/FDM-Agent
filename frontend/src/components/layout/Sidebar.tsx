@@ -31,16 +31,20 @@ interface SidebarNavItem {
     onClick?: () => void;
 }
 
+type SidebarTab = 'tools' | 'history';
+
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, currentSessionId, onSessionChange }) => {
     const { t } = useI18n();
-    const [historyExpanded, setHistoryExpanded] = React.useState(false);
+    const [activeTab, setActiveTab] = React.useState<SidebarTab>('tools');
     const [history, setHistory] = React.useState<ChatSessionMetadata[]>([]);
     const settingsClickStateRef = React.useRef<{ count: number; lastClickAt: number }>({ count: 0, lastClickAt: 0 });
+
+    const showSwitcher = currentPage === 'chat';
 
     React.useEffect(() => {
         let cancelled = false;
 
-        if (historyExpanded) {
+        if (showSwitcher && activeTab === 'history') {
             void chatStorage.listSessions().then((sessions) => {
                 if (!cancelled) {
                     setHistory(sessions);
@@ -51,18 +55,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
         return () => {
             cancelled = true;
         };
-    }, [currentPage, currentSessionId, historyExpanded]);
+    }, [currentPage, currentSessionId, activeTab, showSwitcher]);
 
     const handleNewChat = () => {
         onSessionChange(null);
         onNavigate('chat');
-        setHistoryExpanded(true);
     };
 
     const handleSessionClick = (id: string) => {
         onSessionChange(id);
         onNavigate('chat');
-        setHistoryExpanded(true);
     };
 
     const handleSettingsSecretClick = () => {
@@ -85,19 +87,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
             icon: MessageSquareQuote,
             labelKey: 'sidebar.chat',
             page: 'chat',
-            isActive: currentPage === 'chat' && !historyExpanded,
+            isActive: currentPage === 'chat',
             onClick: () => {
                 onNavigate('chat');
-                setHistoryExpanded(false);
-            },
-        },
-        {
-            icon: History,
-            labelKey: 'sidebar.history',
-            isActive: historyExpanded && currentPage === 'chat',
-            onClick: () => {
-                onNavigate('chat');
-                setHistoryExpanded((value) => !value || currentPage !== 'chat');
             },
         },
         {
@@ -113,7 +105,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
             isActive: currentPage === 'developer',
             onClick: () => {
                 onNavigate('developer');
-                setHistoryExpanded(false);
             },
         },
         {
@@ -138,70 +129,107 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                 </div>
             </div>
 
-            <nav className="flex-1 space-y-1 px-0 pb-4">
-                {navItems.map((item) => {
-                    const Icon = item.icon;
-
-                    return (
+            {/* Tab Switcher - Only visible on chat page */}
+            {showSwitcher && (
+                <div className="px-4 mb-4">
+                    <div className="flex bg-slate-200/50 p-1 rounded-lg">
                         <button
-                            key={item.labelKey}
                             type="button"
-                            disabled={item.isDisabled}
-                            onClick={item.onClick}
-                            className={`flex w-full items-center gap-3 px-4 py-3 text-left font-heading text-sm font-semibold tracking-tight transition-colors ${
-                                item.isActive
-                                    ? 'border-l-[3px] border-green-700 bg-white/45 text-green-900'
-                                    : item.isDisabled
-                                      ? 'cursor-not-allowed text-slate-400'
-                                      : 'cursor-pointer text-slate-500 hover:bg-slate-200/80 hover:text-slate-700'
+                            onClick={() => setActiveTab('tools')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold transition-all rounded-md ${
+                                activeTab === 'tools'
+                                    ? 'bg-white text-green-900 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
                             }`}
                         >
-                            <Icon size={18} />
-                            <span className="truncate">{t(item.labelKey)}</span>
+                            <Wrench size={14} />
+                            {t('sidebar.tools')}
                         </button>
-                    );
-                })}
-            </nav>
-
-            {historyExpanded && (
-                <section className="mx-4 mb-4 pt-4 border-t border-slate-200">
-                    <div className="flex items-center justify-between gap-3 px-1">
-                        <h2 className="font-heading text-xs font-bold tracking-tight text-slate-900">{t('sidebar.historyRecentShort')}</h2>
                         <button
                             type="button"
-                            onClick={handleNewChat}
-                            className="rounded bg-[var(--color-primary)] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white transition-colors hover:bg-[var(--color-primary-container)]"
+                            onClick={() => setActiveTab('history')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold transition-all rounded-md ${
+                                activeTab === 'history'
+                                    ? 'bg-white text-green-900 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                            }`}
                         >
-                            {t('sidebar.newShort')}
+                            <History size={14} />
+                            {t('sidebar.history')}
                         </button>
                     </div>
-
-                    <div className="custom-scrollbar mt-3 max-h-48 space-y-1 overflow-y-auto pr-1 text-xs">
-                        {history.length > 0 ? (
-                            history.map((item) => (
-                                <button
-                                    key={item.id}
-                                    type="button"
-                                    onClick={() => handleSessionClick(item.id)}
-                                    className={`w-full px-2 py-1.5 text-left transition-colors rounded ${
-                                        currentSessionId === item.id
-                                            ? 'bg-white/70 text-slate-900'
-                                            : 'text-slate-600 hover:bg-white/55 hover:text-slate-800'
-                                    }`}
-                                >
-                                    <span className="block truncate font-medium">{item.title}</span>
-                                </button>
-                            ))
-                        ) : (
-                            <div className="px-2 py-4 text-center text-[10px] text-slate-400">
-                                {t('sidebar.noSessions')}
-                            </div>
-                        )}
-                    </div>
-                </section>
+                </div>
             )}
 
-            <div className="mt-auto px-4 py-4">
+            <div className="flex-1 overflow-y-auto">
+                {(!showSwitcher || activeTab === 'tools') ? (
+                    <nav className="space-y-1 px-0 pb-4">
+                        {navItems.map((item) => {
+                            const Icon = item.icon;
+
+                            return (
+                                <button
+                                    key={item.labelKey}
+                                    type="button"
+                                    disabled={item.isDisabled}
+                                    onClick={item.onClick}
+                                    className={`flex w-full items-center gap-3 px-4 py-3 text-left font-heading text-sm font-semibold tracking-tight transition-colors ${
+                                        item.isActive
+                                            ? 'border-l-[3px] border-green-700 bg-white/45 text-green-900'
+                                            : item.isDisabled
+                                              ? 'cursor-not-allowed text-slate-400'
+                                              : 'cursor-pointer text-slate-500 hover:bg-slate-200/80 hover:text-slate-700'
+                                    }`}
+                                >
+                                    <Icon size={18} />
+                                    <span className="truncate">{t(item.labelKey)}</span>
+                                </button>
+                            );
+                        })}
+                    </nav>
+                ) : (
+                    <section className="px-4 pb-4">
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                            <h2 className="font-heading text-xs font-bold tracking-tight text-slate-900">{t('sidebar.historyLabel')}</h2>
+                            <button
+                                type="button"
+                                onClick={handleNewChat}
+                                className="rounded bg-[var(--color-primary)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-white transition-colors hover:bg-[var(--color-primary-container)]"
+                            >
+                                {t('sidebar.newShort')}
+                            </button>
+                        </div>
+
+                        <div className="space-y-1 text-xs">
+                            {history.length > 0 ? (
+                                history.map((item) => (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => handleSessionClick(item.id)}
+                                        className={`w-full px-3 py-2.5 text-left transition-colors rounded-md ${
+                                            currentSessionId === item.id
+                                                ? 'bg-white text-green-900 shadow-sm font-semibold'
+                                                : 'text-slate-600 hover:bg-white/55 hover:text-slate-800'
+                                        }`}
+                                    >
+                                        <span className="block truncate">{item.title}</span>
+                                        <span className="mt-0.5 block text-[10px] opacity-50">
+                                            {new Date(item.timestamp).toLocaleDateString()}
+                                        </span>
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="py-8 text-center text-xs text-slate-400">
+                                    {t('sidebar.noSessions')}
+                                </div>
+                            )}
+                        </div>
+                    </section>
+                )}
+            </div>
+
+            <div className="mt-auto px-4 py-4 border-t border-slate-200/60 bg-slate-50/30">
                 <button
                     type="button"
                     className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-slate-500 transition-colors hover:bg-slate-200/70 hover:text-slate-700"

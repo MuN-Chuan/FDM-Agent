@@ -1,21 +1,19 @@
 import React from 'react';
 import { Bell, Languages, LayoutGrid, LogOut, Search, User } from 'lucide-react';
 
-import type { AppPage } from '../../App';
 import type { UserProfile } from '../../api/api';
 import { useI18n } from '../../i18n/I18nProvider';
 import { useClientAgent } from '../../features/slicer/useClientAgent';
 import { ClientAgentIndicator } from '../../features/slicer/ClientAgentIndicator';
 
 interface TopbarProps {
-    currentPage: AppPage;
     isBorderless?: boolean;
     currentUser: UserProfile | null;
     onOpenAuth: () => void;
     onLogout: () => void;
 }
 
-export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpenAuth, onLogout }) => {
+export const Topbar: React.FC<TopbarProps> = ({ currentUser, onOpenAuth, onLogout }) => {
     const { locale, setLocale, t } = useI18n();
     const { agentStatus, connect, disconnect, capabilities } = useClientAgent();
 
@@ -31,29 +29,6 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpen
                             className="w-full bg-[var(--color-surface-muted)] py-2 pl-10 pr-4 text-sm text-slate-700 outline-none placeholder:text-slate-400"
                         />
                     </div>
-
-                    <nav className="flex h-full items-center gap-6">
-                        <button
-                            type="button"
-                            className={`h-full border-b-2 text-sm transition-colors ${
-                                currentPage === 'chat'
-                                    ? 'border-green-700 font-semibold text-green-800'
-                                    : 'font-medium text-slate-500 hover:text-slate-700'
-                            }`}
-                        >
-                            Tools
-                        </button>
-                        <button
-                            type="button"
-                            className={`h-full border-b-2 text-sm transition-colors ${
-                                currentPage === 'developer'
-                                    ? 'border-green-700 font-semibold text-green-800'
-                                    : 'font-medium text-slate-500 hover:text-slate-700'
-                            }`}
-                        >
-                            History
-                        </button>
-                    </nav>
                 </div>
 
                 <div className="flex items-center gap-2 md:gap-4">
