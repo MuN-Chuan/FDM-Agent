@@ -20,14 +20,14 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpen
     const { agentStatus, connect, disconnect, capabilities } = useClientAgent();
 
     return (
-        <header className="sticky top-0 z-30 h-14 bg-transparent">
+        <header className="sticky top-0 z-30 h-14 bg-[#f8f9fa]">
             <div className="flex h-full items-center justify-between px-5 md:px-6 lg:px-8">
                 <div className="flex min-w-0 items-center gap-8">
                     <div className="relative hidden w-72 md:block">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <input
                             type="text"
-                            placeholder={t('topbar.search')}
+                            placeholder="Search parameters or logs..."
                             className="w-full bg-[var(--color-surface-muted)] py-2 pl-10 pr-4 text-sm text-slate-700 outline-none placeholder:text-slate-400"
                         />
                     </div>
@@ -41,7 +41,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpen
                                     : 'font-medium text-slate-500 hover:text-slate-700'
                             }`}
                         >
-                            {t('sidebar.tools')}
+                            Tools
                         </button>
                         <button
                             type="button"
@@ -51,7 +51,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentPage, currentUser, onOpen
                                     : 'font-medium text-slate-500 hover:text-slate-700'
                             }`}
                         >
-                            {t('sidebar.history')}
+                            History
                         </button>
                     </nav>
                 </div>
