@@ -28,9 +28,14 @@ export interface AgentMessage {
 export interface AgentCapabilities {
     bambu_studio_available: boolean;
     printer_host: string | null;
+    printer_count?: number;
+    printer_login_required?: boolean;
     capabilities: string[];
     version: string;
 }
+
+export type BambuAccountType = 'email' | 'phone';
+export type BambuCloudRegion = 'global' | 'cn';
 
 type MessageListener = (msg: AgentMessage) => void;
 type StatusListener = (status: AgentStatus) => void;
@@ -86,6 +91,8 @@ class ClientAgentBridgeClass {
                     this.capabilities = {
                         bambu_studio_available: (msg.config?.bambu_studio_available as boolean) ?? false,
                         printer_host: (msg.config?.printer_host as string | null) ?? null,
+                        printer_count: (msg.config?.printer_count as number | undefined) ?? 0,
+                        printer_login_required: (msg.config?.printer_login_required as boolean | undefined) ?? false,
                         capabilities: msg.capabilities ?? [],
                         version: msg.version ?? 'unknown',
                     };
@@ -135,14 +142,33 @@ class ClientAgentBridgeClass {
     }
 
     /** Start printing a file (can reference a backend job_id so Agent downloads first). */
-    printStart(fileName: string, jobId?: string) {
-        return this.send('print_start', { file_name: fileName, job_id: jobId });
+    printStart(fileName: string, jobId?: string, plate?: number) {
+        return this.send('print_start', { file_name: fileName, job_id: jobId, plate });
     }
 
     printPause()  { return this.send('print_pause'); }
     printResume() { return this.send('print_resume'); }
-    printStop()   { return this.send('print_stop'); }
+    printStop(confirm = false)   { return this.send('print_stop', { confirm }); }
+    discoverPrinters() { return this.send('printer_discover'); }
+    loginBambuAccount(account: string, password: string, accountType: BambuAccountType, region: BambuCloudRegion) {
+        return this.send('printer_login', { account, password, account_type: accountType, region });
+    }
+    verifyBambuLoginCode(account: string, code: string, accountType: BambuAccountType, region: BambuCloudRegion) {
+        return this.send('printer_login_verify_code', { account, code, account_type: accountType, region });
+    }
+    sendBambuLoginCode(account: string, accountType: BambuAccountType, region: BambuCloudRegion) {
+        return this.send('printer_send_login_code', { account, account_type: accountType, region });
+    }
+    setPrinterIp(printerId: string, ip: string) {
+        return this.send('printer_set_ip', { printer_id: printerId, ip });
+    }
     getPrinterStatus() { return this.send('printer_status'); }
+    getPrinterLoginHint() { return this.send('printer_login_hint'); }
+    controlPrinterLight(printerId: string, mode: 'on' | 'off' | 'auto') {
+        return this.send('printer_light_control', { printer_id: printerId, mode });
+    }
+    getAmsStatus() { return this.send('ams_status'); }
+    homePrinter() { return this.send('printer_home'); }
     ping()        { return this.send('ping'); }
 
     // ─── Listeners ─────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import {
     FileText,
     History,
     MessageSquareQuote,
+    Printer,
     Settings,
     SlidersHorizontal,
     Wrench,
@@ -97,6 +98,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
             labelKey: 'sidebar.presets',
             isActive: false,
             isDisabled: true,
+        },
+        {
+            icon: Printer,
+            labelKey: 'sidebar.printerControl',
+            page: 'printer',
+            isActive: currentPage === 'printer',
+            onClick: () => {
+                onNavigate('printer');
+            },
         },
         {
             icon: FileText,

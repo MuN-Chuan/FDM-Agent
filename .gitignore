@@ -48,6 +48,7 @@ ENV/
 # Frontend build and package manager output
 frontend/dist/
 frontend/node_modules/
+client-agent/node_modules/
 coverage/
 
 # OS/editor noise

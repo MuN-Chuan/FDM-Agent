@@ -13,6 +13,7 @@
 const { WebSocketServer } = require('ws');
 const path = require('path');
 const fs = require('fs');
+const { listConfiguredPrinters } = require('./handlers/printer');
 
 // ─── 加载配置 ─────────────────────────────────────────────────────
 const configPath = path.resolve(__dirname, '..', 'config.json');
@@ -55,15 +56,29 @@ wss.on('listening', () => {
 wss.on('connection', (ws, req) => {
     const clientIp = req.socket.remoteAddress;
     log('info', `Frontend connected from ${clientIp}`);
+    const discovery = listConfiguredPrinters(config);
 
     // Immediately send a hello message with agent capabilities
     send(ws, {
         type: 'hello',
         version: '1.0.0',
-        capabilities: ['export_3mf_cli', 'repack_3mf', 'print_start', 'print_pause', 'print_resume', 'print_stop', 'printer_status'],
+        capabilities: [
+            'export_3mf_cli',
+            'repack_3mf',
+            'printer_discover',
+            'printer_login',
+            'printer_login_verify_code',
+            'printer_send_login_code',
+            'printer_set_ip',
+            'printer_status',
+            'printer_login_hint',
+            'printer_light_control',
+        ],
         config: {
             bambu_studio_available: fs.existsSync(config.bambu_studio_path),
-            printer_host: config.printer?.host ?? null,
+            printer_host: discovery.machines.find((machine) => machine.selected)?.ip ?? null,
+            printer_count: discovery.machines.length,
+            printer_login_required: discovery.login_required,
         }
     });
 

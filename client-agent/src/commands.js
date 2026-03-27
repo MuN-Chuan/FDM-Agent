@@ -27,7 +27,16 @@ async function handleCommand(cmd, params, push, config) {
         case 'print_pause':
         case 'print_resume':
         case 'print_stop':
+        case 'printer_discover':
+        case 'printer_login':
+        case 'printer_login_verify_code':
+        case 'printer_send_login_code':
+        case 'printer_set_ip':
         case 'printer_status':
+        case 'printer_login_hint':
+        case 'printer_light_control':
+        case 'printer_home':
+        case 'ams_status':
             return printerControl(cmd, params, push, config);
 
         case 'ping':
