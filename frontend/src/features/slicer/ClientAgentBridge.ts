@@ -142,13 +142,13 @@ class ClientAgentBridgeClass {
     }
 
     /** Start printing a file (can reference a backend job_id so Agent downloads first). */
-    printStart(fileName: string, jobId?: string, plate?: number) {
-        return this.send('print_start', { file_name: fileName, job_id: jobId, plate });
+    printStart(printerId: string, fileName: string, jobId?: string, plate?: number) {
+        return this.send('print_start', { printer_id: printerId, file_name: fileName, job_id: jobId, plate });
     }
 
-    printPause()  { return this.send('print_pause'); }
-    printResume() { return this.send('print_resume'); }
-    printStop(confirm = false)   { return this.send('print_stop', { confirm }); }
+    printPause(printerId: string)  { return this.send('print_pause', { printer_id: printerId }); }
+    printResume(printerId: string) { return this.send('print_resume', { printer_id: printerId }); }
+    printStop(printerId: string, confirm = false)   { return this.send('print_stop', { printer_id: printerId, confirm }); }
     discoverPrinters() { return this.send('printer_discover'); }
     loginBambuAccount(account: string, password: string, accountType: BambuAccountType, region: BambuCloudRegion) {
         return this.send('printer_login', { account, password, account_type: accountType, region });
@@ -167,8 +167,29 @@ class ClientAgentBridgeClass {
     controlPrinterLight(printerId: string, mode: 'on' | 'off' | 'auto') {
         return this.send('printer_light_control', { printer_id: printerId, mode });
     }
-    getAmsStatus() { return this.send('ams_status'); }
-    homePrinter() { return this.send('printer_home'); }
+    getAmsStatus(printerId: string) { return this.send('ams_status', { printer_id: printerId }); }
+    homePrinter(printerId: string) { return this.send('printer_home', { printer_id: printerId }); }
+    setBedTemperature(printerId: string, temp: number) {
+        return this.send('set_bed_temperature', { printer_id: printerId, temperature: temp });
+    }
+    setNozzleTemperature(printerId: string, temp: number) {
+        return this.send('set_nozzle_temperature', { printer_id: printerId, temperature: temp });
+    }
+    moveAxis(printerId: string, axis: 'X' | 'Y' | 'Z' | 'E', distance: number, speed?: number) {
+        return this.send('move_axis', { printer_id: printerId, axis, distance, speed });
+    }
+    setPrintSpeed(printerId: string, speed: number) {
+        return this.send('set_print_speed', { printer_id: printerId, speed });
+    }
+    setFanSpeed(printerId: string, speed: number, fan: 'part' | 'aux' | 'chamber' = 'part') {
+        return this.send('set_fan_speed', { printer_id: printerId, fan, speed });
+    }
+    extrudeFilament(printerId: string, length: number, speed?: number) {
+        return this.send('extrude_filament', { printer_id: printerId, length, speed });
+    }
+    cameraSnapshot(printerId: string) {
+        return this.send('camera_snapshot', { printer_id: printerId });
+    }
     ping()        { return this.send('ping'); }
 
     // ─── Listeners ─────────────────────────────────────────────────

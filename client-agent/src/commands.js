@@ -35,8 +35,16 @@ async function handleCommand(cmd, params, push, config) {
         case 'printer_status':
         case 'printer_login_hint':
         case 'printer_light_control':
+        case 'camera_snapshot':
         case 'printer_home':
         case 'ams_status':
+        case 'set_bed_temperature':
+        case 'set_nozzle_temperature':
+        case 'move_axis':
+        case 'set_print_speed':
+        case 'set_fan_speed':
+        case 'extrude_filament':
+        case 'send_gcode':
             return printerControl(cmd, params, push, config);
 
         case 'ping':

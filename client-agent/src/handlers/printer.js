@@ -7,6 +7,7 @@ const ftp = require('basic-ftp');
 const mqtt = require('mqtt');
 const xdgAppPaths = require('xdg-app-paths/cjs');
 const jwt = require('jsonwebtoken');
+const { getBambuStudioStatus, runStudioLocalCommand } = require('./studio');
 
 const bambuConsts = require('bambu-cli/lib/const.js');
 const bambuUtils = require('bambu-cli/lib/utils.js');
@@ -14,6 +15,8 @@ const bambuUtils = require('bambu-cli/lib/utils.js');
 const DISCOVERY_TIMEOUT_MS = 9000;
 const MQTT_TIMEOUT_MS = 10000; // Increased from 7000 to 10000 for more reliable connections
 const FTP_TIMEOUT_MS = 7000; // Increased from 5000 to 7000 for more reliable connections
+const STUDIO_START_SEQUENCE_ID = 20000;
+let studioSequenceId = STUDIO_START_SEQUENCE_ID;
 
 function getBambuCliConfigFile() {
     const xdg = xdgAppPaths({ name: 'bambu-cli' });
@@ -41,6 +44,80 @@ function writeBambuCliConfig(nextConfig) {
     const configFile = getBambuCliConfigFile();
     fs.mkdirSync(path.dirname(configFile), { recursive: true });
     fs.writeFileSync(configFile, JSON.stringify(nextConfig, null, 4) + '\n', 'utf8');
+}
+
+function nextStudioSequenceId() {
+    const current = studioSequenceId;
+    studioSequenceId += 1;
+    return String(current);
+}
+
+function cloneCommand(command) {
+    return JSON.parse(JSON.stringify(command || {}));
+}
+
+function getCommandEnvelope(command) {
+    if (!command || typeof command !== 'object') {
+        return null;
+    }
+
+    for (const key of ['print', 'system', 'camera', 'upgrade', 'xcam', 'pushing', 'info']) {
+        if (command[key] && typeof command[key] === 'object' && typeof command[key].command === 'string') {
+            return { key, payload: command[key] };
+        }
+    }
+
+    return null;
+}
+
+function prepareCommandForDispatch(command, options = {}) {
+    const prepared = cloneCommand(command);
+    const envelope = getCommandEnvelope(prepared);
+    if (!envelope) {
+        return prepared;
+    }
+
+    envelope.payload.sequence_id = nextStudioSequenceId();
+    if (options.userId && envelope.key === 'print') {
+        envelope.payload.user_id = options.userId;
+    }
+
+    return prepared;
+}
+
+function extractMatchingCommandAck(response, command) {
+    const envelope = getCommandEnvelope(command);
+    if (!envelope) {
+        return null;
+    }
+
+    const responseEnvelope = response?.[envelope.key];
+    if (!responseEnvelope || responseEnvelope.command !== envelope.payload.command) {
+        return null;
+    }
+
+    if (
+        envelope.payload.sequence_id &&
+        responseEnvelope.sequence_id &&
+        String(responseEnvelope.sequence_id) !== String(envelope.payload.sequence_id)
+    ) {
+        return null;
+    }
+
+    return responseEnvelope;
+}
+
+function extractCommandError(envelope) {
+    if (!envelope || typeof envelope !== 'object') {
+        return null;
+    }
+
+    const code = envelope.err_code ?? envelope.error_code ?? envelope.code ?? null;
+    if (code === null || code === undefined || code === '' || String(code) === '0') {
+        return null;
+    }
+
+    return `Printer rejected command with err_code ${code}`;
 }
 
 function isValidIpAddress(value) {
@@ -170,6 +247,50 @@ function summarizeDiscoveredMachine(machine, preferredId) {
         has_access_code: Boolean(machine.token),
         selected: preferredId ? machine.id === preferredId : false,
         cloud_online: Boolean(machine.cloud_online),
+    };
+}
+
+function isLocalBambuStudioAvailable(agentConfig) {
+    return Boolean(agentConfig?.bambu_studio_path && fs.existsSync(agentConfig.bambu_studio_path));
+}
+
+function isStudioLocalControlAvailable(machine, agentConfig) {
+    return Boolean(isLocalBambuStudioAvailable(agentConfig));
+}
+
+function createRouteAvailability(machine, mqttState, ftpAlive, agentConfig) {
+    const lanOnline = Boolean(machine.ip && machine.token && (ftpAlive || mqttState?.mqtt));
+    const cloudOnline = Boolean(machine.cloud_online);
+    const studioAvailable = Boolean(lanOnline && isStudioLocalControlAvailable(machine, agentConfig));
+
+    return {
+        lan: lanOnline,
+        studio: studioAvailable,
+        cloud: cloudOnline,
+    };
+}
+
+function resolveRoutesInPriority(availability, preferredRoutes) {
+    return preferredRoutes.filter((route) => Boolean(availability?.[route]));
+}
+
+function buildCommandRoutes(availability) {
+    return {
+        printer_status: resolveRoutesInPriority(availability, ['lan', 'studio', 'cloud']),
+        ams_status: resolveRoutesInPriority(availability, ['lan', 'cloud']),
+        printer_light_control: resolveRoutesInPriority(availability, ['lan', 'cloud']),
+        print_start: resolveRoutesInPriority(availability, ['lan', 'cloud']),
+        print_pause: resolveRoutesInPriority(availability, ['lan', 'cloud']),
+        print_resume: resolveRoutesInPriority(availability, ['lan', 'cloud']),
+        print_stop: resolveRoutesInPriority(availability, ['lan', 'cloud']),
+        printer_home: resolveRoutesInPriority(availability, ['lan', 'studio']),
+        move_axis: resolveRoutesInPriority(availability, ['lan', 'studio']),
+        set_bed_temperature: resolveRoutesInPriority(availability, ['lan']),
+        set_nozzle_temperature: resolveRoutesInPriority(availability, ['lan']),
+        set_print_speed: resolveRoutesInPriority(availability, ['lan']),
+        set_fan_speed: resolveRoutesInPriority(availability, ['lan']),
+        extrude_filament: resolveRoutesInPriority(availability, ['lan']),
+        send_gcode: resolveRoutesInPriority(availability, ['lan']),
     };
 }
 
@@ -1020,6 +1141,14 @@ function fetchMqttStatus(machine) {
             remaining: 'n/a',
             speed: 'n/a',
             nozzle: 'n/a',
+            nozzle_temp: null,
+            nozzle_target_temp: null,
+            bed_temp: null,
+            bed_target_temp: null,
+            chamber_temp: null,
+            gcode_state: null,
+            layer_num: null,
+            total_layers: null,
             hms: [],
         };
 
@@ -1065,6 +1194,7 @@ function fetchMqttStatus(machine) {
             try {
                 const json = JSON.parse(message.toString());
                 bambuUtils.mqttMessage(json, state);
+                enrichParsedPrintState(json.print, state);
 
                 if (json.info) {
                     topics.info += 1;
@@ -1084,13 +1214,262 @@ function fetchMqttStatus(machine) {
     });
 }
 
-function normalizeStatus(machine, mqttState, ftpAlive, preferredId) {
-    const amsModules = Array.isArray(mqttState.ams?.ams)
-        ? mqttState.ams.ams.map((entry) => bambuUtils.amsNumToLetter(entry.id))
-        : [];
-    const activeTray = Number.isFinite(Number(mqttState.ams?.tray_now))
-        ? bambuUtils.amsTrayNumToLetters(Number(mqttState.ams?.tray_now))
-        : null;
+function fetchCloudMqttStatus(machine, cliConfig) {
+    return new Promise((resolve) => {
+        if (!machine?.id || !cliConfig?.access_token || !cliConfig?.mqtt_user) {
+            resolve({ mqtt: false });
+            return;
+        }
+
+        const state = {
+            machine: {
+                id: machine.id,
+                name: machine.name,
+                ip: machine.ip,
+                model: machine.model,
+                make: machine.make,
+            },
+            external: { color: false, type: false },
+            ams: 'None',
+            mqtt: false,
+            printing: 'Unknown',
+            task: 'None',
+            percent: 'n/a',
+            remaining: 'n/a',
+            speed: 'n/a',
+            nozzle: 'n/a',
+            nozzle_temp: null,
+            nozzle_target_temp: null,
+            bed_temp: null,
+            bed_target_temp: null,
+            chamber_temp: null,
+            gcode_state: null,
+            layer_num: null,
+            total_layers: null,
+            hms: [],
+        };
+
+        let settled = false;
+        const topics = { info: 0, print: 0 };
+        const client = mqtt.connect(getBambuCloudMqttBroker(cliConfig.cloud_region), {
+            username: cliConfig.mqtt_user,
+            password: cliConfig.access_token,
+            rejectUnauthorized: false,
+            connectTimeout: MQTT_TIMEOUT_MS,
+            clientId: `fdm-ai-cloud-${Math.random().toString(16).slice(2)}`,
+        });
+
+        const finish = () => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            try {
+                client.end(true);
+            } catch {
+                // Ignore socket shutdown failures.
+            }
+            resolve(state);
+        };
+
+        const hardTimeout = setTimeout(finish, MQTT_TIMEOUT_MS + 1500);
+
+        client.on('error', finish);
+
+        client.on('connect', () => {
+            state.mqtt = true;
+            client.unsubscribe(`device/${machine.id}/report`, () => {});
+            setTimeout(() => {
+                client.subscribe(`device/${machine.id}/report`, () => {});
+                bambuConsts.MQTT_INIT.forEach((init) => {
+                    client.publish(`device/${machine.id}/request`, JSON.stringify(init));
+                });
+            }, 300);
+        });
+
+        client.on('message', (_topic, message) => {
+            try {
+                const json = JSON.parse(message.toString());
+                bambuUtils.mqttMessage(json, state);
+                enrichParsedPrintState(json.print, state);
+
+                if (json.info) {
+                    topics.info += 1;
+                }
+                if (json.print) {
+                    topics.print += 1;
+                }
+
+                if (topics.info >= 1 && topics.print >= 2) {
+                    clearTimeout(hardTimeout);
+                    finish();
+                }
+            } catch {
+                // Ignore malformed MQTT payloads.
+            }
+        });
+    });
+}
+
+function formatRemainingMinutes(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+        return 'n/a';
+    }
+
+    const totalSeconds = Math.max(0, Math.round(numeric * 60));
+    if (totalSeconds <= 0) {
+        return '0s';
+    }
+
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const parts = [];
+
+    if (hours > 0) {
+        parts.push(`${hours}h`);
+    }
+    if (minutes > 0 || hours > 0) {
+        parts.push(`${minutes}m`);
+    }
+    if (seconds > 0 || parts.length === 0) {
+        parts.push(`${seconds}s`);
+    }
+
+    return parts.join(' ');
+}
+
+function enrichParsedPrintState(print, state) {
+    if (!print || typeof print !== 'object') {
+        return state;
+    }
+
+    const readNumber = (value) => (Number.isFinite(Number(value)) ? Number(value) : null);
+    const gcodeState = typeof print.gcode_state === 'string' ? print.gcode_state.toUpperCase() : null;
+    const percentValue = readNumber(print.mc_percent);
+    const remainingMinutes = readNumber(print.mc_remaining_time);
+    const layerNum = readNumber(print.layer_num);
+    const totalLayers = readNumber(print.total_layer_num);
+    const isFinished = gcodeState === 'FINISH'
+        || (percentValue != null && percentValue >= 100)
+        || (layerNum != null && totalLayers != null && totalLayers > 0 && layerNum >= totalLayers);
+
+    state.nozzle_temp = readNumber(print.nozzle_temper);
+    state.nozzle_target_temp = readNumber(print.nozzle_target_temper);
+    state.bed_temp = readNumber(print.bed_temper);
+    state.bed_target_temp = readNumber(print.bed_target_temper);
+    state.chamber_temp = readNumber(print.chamber_temper);
+    state.gcode_state = gcodeState || state.gcode_state || null;
+    state.layer_num = layerNum ?? state.layer_num ?? null;
+    state.total_layers = totalLayers ?? state.total_layers ?? null;
+
+    if (isFinished) {
+        state.printing = 'Complete';
+        state.percent = '100%';
+        state.remaining = '0s';
+        return state;
+    }
+
+    if (gcodeState === 'PAUSE') {
+        state.printing = 'Paused';
+    } else if (gcodeState === 'FAILED') {
+        state.printing = 'Failed';
+    } else if ((state.printing === 'Unknown' || !state.printing) && gcodeState === 'RUNNING') {
+        state.printing = 'Printing';
+    }
+
+    if ((state.printing === 'Unknown' || !state.printing) && (gcodeState === 'IDLE' || Number(print.stg_cur) === 255)) {
+        state.printing = 'Idle';
+    }
+    if ((state.printing === 'Unknown' || !state.printing) && typeof print.print_type === 'string' && print.print_type.toLowerCase() === 'idle') {
+        state.printing = 'Idle';
+    }
+    if ((state.percent === 'n/a' || state.percent == null || state.percent === '0%') && percentValue != null) {
+        state.percent = `${Math.max(0, Math.min(100, Math.round(percentValue)))}%`;
+    }
+    if ((state.remaining === 'n/a' || state.remaining == null) && remainingMinutes != null) {
+        state.remaining = formatRemainingMinutes(remainingMinutes);
+    }
+
+    return state;
+}
+
+function mergeTelemetryState(baseState, fallbackState) {
+    if (!fallbackState || typeof fallbackState !== 'object') {
+        return baseState;
+    }
+
+    const next = {
+        ...baseState,
+        ...fallbackState,
+        machine: baseState.machine || fallbackState.machine,
+        external: (baseState.external?.color && baseState.external?.type) ? baseState.external : fallbackState.external,
+        ams: (Array.isArray(baseState.ams?.ams) && baseState.ams.ams.length > 0) ? baseState.ams : fallbackState.ams,
+        hms: Array.isArray(baseState.hms) && baseState.hms.length > 0 ? baseState.hms : fallbackState.hms,
+    };
+
+    for (const key of ['printing', 'task', 'percent', 'remaining', 'speed', 'nozzle', 'nozzle_temp', 'nozzle_target_temp', 'bed_temp', 'bed_target_temp', 'chamber_temp', 'gcode_state', 'layer_num', 'total_layers']) {
+        if (baseState[key] == null || ['Unknown', 'None', 'n/a', ''].includes(baseState[key])) {
+            next[key] = fallbackState[key] ?? baseState[key];
+        } else {
+            next[key] = baseState[key];
+        }
+    }
+
+    next.mqtt = Boolean(baseState.mqtt);
+    return next;
+}
+
+function normalizeAmsModules(rawAms) {
+    if (!Array.isArray(rawAms?.ams)) {
+        return [];
+    }
+
+    return rawAms.ams.map((module) => ({
+        id: String(module.id ?? ''),
+        letter: bambuUtils.amsNumToLetter(module.id),
+        humidity: module.humidity ?? null,
+        temp: module.temp ?? null,
+        trays: Array.isArray(module.tray)
+            ? module.tray.map((tray) => ({
+                  id: String(tray.id ?? ''),
+                  type: tray.tray_type || null,
+                  color: Array.isArray(tray.cols) && tray.cols[0] ? String(tray.cols[0]).slice(0, 6) : null,
+                  colors: Array.isArray(tray.cols)
+                      ? tray.cols.map((entry) => String(entry).slice(0, 6)).filter(Boolean)
+                      : [],
+                  remain: Number.isFinite(Number(tray.remain)) ? Number(tray.remain) : null,
+                  name: tray.tray_sub_brands || tray.tray_info_name || tray.tray_name || null,
+              }))
+            : [],
+    }));
+}
+
+function normalizeActiveTray(rawAms) {
+    const trayNow = Number(rawAms?.tray_now);
+    if (!Number.isFinite(trayNow) || trayNow < 0) {
+        return null;
+    }
+
+    if (trayNow >= 254) {
+        return 'External Spool';
+    }
+
+    const amsIndex = Math.floor(trayNow / 4);
+    const trayIndex = (trayNow % 4) + 1;
+    if (!Number.isFinite(amsIndex) || amsIndex < 0 || amsIndex > 25) {
+        return `TRAY ${trayIndex}`;
+    }
+
+    return `AMS ${String.fromCharCode(65 + amsIndex)}${trayIndex}`;
+}
+
+function normalizeStatus(machine, mqttState, ftpAlive, preferredId, agentConfig) {
+    const amsModules = normalizeAmsModules(mqttState.ams);
+    const activeTray = normalizeActiveTray(mqttState.ams);
+    const routes = createRouteAvailability(machine, mqttState, ftpAlive, agentConfig);
+    const command_routes = buildCommandRoutes(routes);
 
     return {
         id: String(machine.id || ''),
@@ -1103,6 +1482,10 @@ function normalizeStatus(machine, mqttState, ftpAlive, preferredId) {
         online: Boolean(machine.cloud_online || ftpAlive || mqttState.mqtt),
         cloud_online: Boolean(machine.cloud_online),
         lan_online: Boolean(ftpAlive || mqttState.mqtt),
+        local_mode_required: Boolean(machine.cloud_online && !(ftpAlive || mqttState.mqtt)),
+        studio_available: routes.studio,
+        routes,
+        command_routes,
         ftp: Boolean(ftpAlive),
         mqtt: Boolean(mqttState.mqtt),
         printing_stage: mqttState.printing || 'Unknown',
@@ -1111,6 +1494,14 @@ function normalizeStatus(machine, mqttState, ftpAlive, preferredId) {
         remaining_time: mqttState.remaining || 'n/a',
         speed: mqttState.speed || 'n/a',
         nozzle_diameter: mqttState.nozzle || 'n/a',
+        gcode_state: mqttState.gcode_state || null,
+        layer_num: Number.isFinite(Number(mqttState.layer_num)) ? Number(mqttState.layer_num) : null,
+        total_layers: Number.isFinite(Number(mqttState.total_layers)) ? Number(mqttState.total_layers) : null,
+        nozzle_temp: Number.isFinite(Number(mqttState.nozzle_temp)) ? Number(mqttState.nozzle_temp) : null,
+        nozzle_target_temp: Number.isFinite(Number(mqttState.nozzle_target_temp)) ? Number(mqttState.nozzle_target_temp) : null,
+        bed_temp: Number.isFinite(Number(mqttState.bed_temp)) ? Number(mqttState.bed_temp) : null,
+        bed_target_temp: Number.isFinite(Number(mqttState.bed_target_temp)) ? Number(mqttState.bed_target_temp) : null,
+        chamber_temp: Number.isFinite(Number(mqttState.chamber_temp)) ? Number(mqttState.chamber_temp) : null,
         ams_modules: amsModules,
         active_tray: activeTray,
         has_external_spool: Boolean(mqttState.external?.color && mqttState.external?.type),
@@ -1125,9 +1516,17 @@ function normalizeStatus(machine, mqttState, ftpAlive, preferredId) {
 
 async function collectPrinterStatuses(config, push) {
     const discovery = listConfiguredPrinters(config);
+    const studio_status = await getBambuStudioStatus(config).catch(() => ({
+        installed: false,
+        running: false,
+        automation_ready: false,
+        path: config?.bambu_studio_path ?? null,
+        process_name: null,
+    }));
     if (discovery.login_required) {
         return {
             ...discovery,
+            studio_status,
             statuses: [],
             message: 'No Bambu account devices found. Run "bambu-cli login" once on this computer first.',
         };
@@ -1136,6 +1535,7 @@ async function collectPrinterStatuses(config, push) {
     if (discovery.binding_required) {
         return {
             ...discovery,
+            studio_status,
             statuses: [],
             message: 'Bambu account login succeeded, but the cloud API returned no bound printers for this account.',
         };
@@ -1221,12 +1621,18 @@ async function collectPrinterStatuses(config, push) {
                 console.log(`[LAN Connection] All fallback attempts failed for machine ${machine.id}`);
             }
         }
+
+        if (machine.cloud_online && cliConfig.access_token && cliConfig.mqtt_user) {
+            const cloudMqttState = await fetchCloudMqttStatus(machine, cliConfig);
+            mqttState = mergeTelemetryState(mqttState, cloudMqttState);
+        }
         
-        statuses.push(normalizeStatus(machine, mqttState, ftpAlive, preferredId));
+        statuses.push(normalizeStatus(machine, mqttState, ftpAlive, preferredId, config));
     }
 
     return {
         ...discovery,
+        studio_status,
         machines: machines.map((machine) => summarizeDiscoveredMachine(machine, preferredId)),
         statuses,
         cache_ip_hints: cacheEnriched.cacheHints,
@@ -1258,6 +1664,9 @@ async function sendCloudMqttCommand(printerId, command, push) {
     
     push({ type: 'progress', message: `Connecting to cloud MQTT (${broker})...` });
     
+    const preparedCommand = prepareCommandForDispatch(command, { userId: cliConfig.mqtt_user || null });
+    const envelope = getCommandEnvelope(preparedCommand);
+
     return new Promise((resolve, reject) => {
         let settled = false;
         const responses = [];
@@ -1306,7 +1715,7 @@ async function sendCloudMqttCommand(printerId, command, push) {
                 
                 // Publish command
                 const topic = `device/${printerId}/request`;
-                const payload = JSON.stringify(command);
+                const payload = JSON.stringify(preparedCommand);
                 
                 client.publish(topic, payload, (err) => {
                     if (err) {
@@ -1324,14 +1733,24 @@ async function sendCloudMqttCommand(printerId, command, push) {
             try {
                 const response = JSON.parse(message.toString());
                 responses.push(response);
-                
-                // For most commands, we can finish after receiving any response
-                // For specific commands, you might want to wait for specific response fields
+
+                const ackEnvelope = extractMatchingCommandAck(response, preparedCommand);
+                if (!ackEnvelope) {
+                    return;
+                }
+
+                const commandError = extractCommandError(ackEnvelope);
                 clearTimeout(timeout);
+                if (commandError) {
+                    finish(new Error(commandError));
+                    return;
+                }
+
                 finish(null, {
                     success: true,
-                    command,
+                    command: preparedCommand,
                     responses,
+                    sequence_id: envelope?.payload?.sequence_id || null,
                     message: 'Command sent successfully via cloud MQTT'
                 });
             } catch (error) {
@@ -1339,6 +1758,287 @@ async function sendCloudMqttCommand(printerId, command, push) {
             }
         });
     });
+}
+
+/**
+ * Send print control command via LAN MQTT
+ */
+async function sendPrintCommandViaLanMqtt(printerId, ip, accessCode, command, params = {}) {
+    let mqttCommand;
+
+    switch (command) {
+        case 'print_start':
+            mqttCommand = {
+                print: {
+                    command: 'project_file',
+                    param: params.fileName || '',
+                    subtask_name: params.fileName || '',
+                    url: `ftp://${params.fileName}`,
+                    bed_type: 'auto',
+                    timelapse: false,
+                    bed_leveling: true,
+                    flow_cali: false,
+                    vibration_cali: false,
+                    layer_inspect: false,
+                    use_ams: true
+                }
+            };
+            break;
+        case 'print_pause':
+            mqttCommand = { print: { command: 'pause' } };
+            break;
+        case 'print_resume':
+            mqttCommand = { print: { command: 'resume' } };
+            break;
+        case 'print_stop':
+            mqttCommand = { print: { command: 'stop' } };
+            break;
+        default:
+            throw new Error(`Unknown command: ${command}`);
+    }
+
+    return sendCommandViaLanMqtt(printerId, ip, accessCode, mqttCommand);
+}
+
+/**
+ * Send print control command via Cloud MQTT
+ */
+async function sendPrintCommandViaCloudMqtt(printerId, command, params, push) {
+    let mqttCommand;
+    
+    switch (command) {
+        case 'print_start':
+            mqttCommand = {
+                print: {
+                    command: 'project_file',
+                    param: params.fileName || '',
+                    subtask_name: params.fileName || '',
+                    url: `ftp://${params.fileName}`,
+                    bed_type: 'auto',
+                    timelapse: false,
+                    bed_leveling: true,
+                    flow_cali: false,
+                    vibration_cali: false,
+                    layer_inspect: false,
+                    use_ams: true
+                }
+            };
+            break;
+        case 'print_pause':
+            mqttCommand = { print: { command: 'pause' } };
+            break;
+        case 'print_resume':
+            mqttCommand = { print: { command: 'resume' } };
+            break;
+        case 'print_stop':
+            mqttCommand = { print: { command: 'stop' } };
+            break;
+        default:
+            throw new Error(`Unknown command: ${command}`);
+    }
+    
+    return sendCloudMqttCommand(printerId, mqttCommand, push);
+}
+
+/**
+ * Send generic command via LAN MQTT
+ */
+async function sendCommandViaLanMqtt(printerId, ip, accessCode, command) {
+    const cliConfig = readBambuCliConfig();
+    const preparedCommand = prepareCommandForDispatch(command, { userId: cliConfig.mqtt_user || null });
+    const envelope = getCommandEnvelope(preparedCommand);
+
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const client = mqtt.connect(`mqtts://${ip}:8883`, {
+            username: 'bblp',
+            password: accessCode,
+            clientId: `client_${Date.now()}`,
+            rejectUnauthorized: false,
+            connectTimeout: MQTT_TIMEOUT_MS
+        });
+        
+        const finish = (error, result) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            try {
+                client.end(true);
+            } catch {
+                // Ignore cleanup failures.
+            }
+            if (error) {
+                reject(error);
+            } else {
+                resolve(result);
+            }
+        };
+
+        const timeout = setTimeout(() => {
+            finish(new Error('LAN MQTT command timeout'));
+        }, MQTT_TIMEOUT_MS);
+        
+        client.on('error', (error) => {
+            clearTimeout(timeout);
+            finish(error);
+        });
+        
+        client.on('connect', () => {
+            client.subscribe(`device/${printerId}/report`, (subscribeError) => {
+                if (subscribeError) {
+                    clearTimeout(timeout);
+                    finish(subscribeError);
+                    return;
+                }
+
+                client.publish(`device/${printerId}/request`, JSON.stringify(preparedCommand), (publishError) => {
+                    if (publishError) {
+                        clearTimeout(timeout);
+                        finish(publishError);
+                    }
+                });
+            });
+        });
+
+        client.on('message', (_topic, message) => {
+            try {
+                const response = JSON.parse(message.toString());
+                const ackEnvelope = extractMatchingCommandAck(response, preparedCommand);
+                if (!ackEnvelope) {
+                    return;
+                }
+
+                const commandError = extractCommandError(ackEnvelope);
+                clearTimeout(timeout);
+                if (commandError) {
+                    finish(new Error(commandError));
+                    return;
+                }
+
+                finish(null, {
+                    success: true,
+                    command: preparedCommand,
+                    response,
+                    sequence_id: envelope?.payload?.sequence_id || null,
+                });
+            } catch {
+                // Ignore malformed packets and keep waiting.
+            }
+        });
+    });
+}
+
+async function sendCommandViaStudioPlugin(machine, command, config) {
+    const cliConfig = readBambuCliConfig();
+    const preparedCommand = prepareCommandForDispatch(command, { userId: cliConfig.mqtt_user || null });
+    const result = await runStudioLocalCommand(machine, preparedCommand, config);
+
+    if (typeof result.response === 'string' && result.response.trim()) {
+        try {
+            const response = JSON.parse(result.response);
+            const ackEnvelope = extractMatchingCommandAck(response, preparedCommand);
+            const commandError = extractCommandError(ackEnvelope);
+            if (commandError) {
+                throw new Error(commandError);
+            }
+            return {
+                success: true,
+                command: preparedCommand,
+                response,
+                sequence_id: result.sequence_id || null,
+                bridge: result,
+            };
+        } catch (error) {
+            if (!(error instanceof SyntaxError)) {
+                throw error;
+            }
+        }
+    }
+
+    return {
+        success: true,
+        command: preparedCommand,
+        response: result.response || null,
+        sequence_id: result.sequence_id || null,
+        bridge: result,
+    };
+}
+
+function requireLanControl(machine, action) {
+    if (!machine || !machine.id) {
+        throw new Error(`${action} requires a known printer`);
+    }
+    if (!machine.ip || !machine.token) {
+        throw new Error(`${action} requires LAN control. Current printer has no valid LAN IP or access code.`);
+    }
+    return machine;
+}
+
+async function sendGcodeLineViaLan(machine, line) {
+    const trimmed = typeof line === 'string' ? line.trim() : '';
+    if (!trimmed) {
+        return { success: true, skipped: true };
+    }
+    return sendCommandViaLanMqtt(machine.id, machine.ip, machine.token, {
+        print: {
+            command: 'gcode_line',
+            param: trimmed,
+        },
+    });
+}
+
+async function sendGcodeSequenceViaLan(machine, lines) {
+    const results = [];
+    for (const line of lines) {
+        results.push(await sendGcodeLineViaLan(machine, line));
+    }
+    return {
+        success: true,
+        steps: results.length,
+    };
+}
+
+/**
+ * Send G-code line via cloud MQTT
+ * @param {string} printerId - Printer device ID
+ * @param {string} line - G-code line to send
+ * @param {function} push - Progress callback
+ * @returns {Promise<object>} - Command result
+ */
+async function sendGcodeLineViaCloud(printerId, line, push) {
+    const trimmed = typeof line === 'string' ? line.trim() : '';
+    if (!trimmed) {
+        return { success: true, skipped: true };
+    }
+    
+    const cliConfig = readBambuCliConfig();
+    const command = {
+        print: {
+            command: 'gcode_line',
+            param: trimmed,
+        },
+    };
+
+    return sendCloudMqttCommand(printerId, command, push);
+}
+
+/**
+ * Send G-code sequence via cloud MQTT
+ * @param {string} printerId - Printer device ID
+ * @param {string[]} lines - Array of G-code lines
+ * @param {function} push - Progress callback
+ * @returns {Promise<object>} - Command result
+ */
+async function sendGcodeSequenceViaCloud(printerId, lines, push) {
+    const results = [];
+    for (const line of lines) {
+        results.push(await sendGcodeLineViaCloud(printerId, line, push));
+    }
+    return {
+        success: true,
+        steps: results.length,
+    };
 }
 
 /**
@@ -1352,7 +2052,6 @@ async function controlPrinterLightCloud(printerId, mode, push) {
     // LED control command for Bambu printers
     const command = {
         system: {
-            sequence_id: '0',
             command: 'ledctrl',
             led_node: 'chamber_light',
             led_mode: mode === 'on' ? 'on' : mode === 'off' ? 'off' : 'auto',
@@ -1372,10 +2071,20 @@ async function printerControl(cmd, params, push, config) {
     switch (cmd) {
         case 'printer_discover': {
             const discovery = listConfiguredPrinters(config);
+            const studio_status = await getBambuStudioStatus(config).catch(() => ({
+                installed: false,
+                running: false,
+                automation_ready: false,
+                path: config?.bambu_studio_path ?? null,
+                process_name: null,
+            }));
             push({
                 type: 'done',
                 cmd,
-                data: discovery,
+                data: {
+                    ...discovery,
+                    studio_status,
+                },
                 message: discovery.login_required
                     ? 'No linked Bambu account found in local bambu-cli config.'
                     : discovery.binding_required
@@ -1537,13 +2246,545 @@ async function printerControl(cmd, params, push, config) {
         case 'print_start':
         case 'print_pause':
         case 'print_resume':
-        case 'print_stop':
-        case 'printer_home':
-        case 'ams_status':
-            throw new Error(
-                `The installed bambu-cli version does not expose a stable "${cmd}" command path yet. `
-                + 'Use printer discovery and status first, then we can add command support after the toolchain is upgraded.',
-            );
+        case 'print_stop': {
+            const printerId = typeof params.printer_id === 'string' ? params.printer_id.trim() : '';
+            const fileName = typeof params.file_name === 'string' ? params.file_name.trim() : '';
+            const plate = typeof params.plate === 'number' ? params.plate : 1;
+            
+            if (!printerId) {
+                throw new Error(`${cmd} requires printer_id`);
+            }
+            
+            if (cmd === 'print_start' && !fileName) {
+                throw new Error('print_start requires file_name');
+            }
+            
+            const cliConfig = readBambuCliConfig();
+            const machine = cliConfig.machines.find(m => m.id === printerId);
+            
+            if (!machine) {
+                throw new Error(`Printer ${printerId} not found`);
+            }
+            
+            push({ type: 'progress', message: `Sending ${cmd} command to ${printerId}...` });
+            
+            try {
+                let result;
+                
+                // 优先使用局域网 MQTT
+                if (machine.ip && machine.token) {
+                    result = await sendPrintCommandViaLanMqtt(machine.id, machine.ip, machine.token, cmd, { fileName, plate });
+                }
+                // 回退到云端 MQTT
+                else if (machine.cloud_online && cliConfig.access_token) {
+                    result = await sendPrintCommandViaCloudMqtt(printerId, cmd, { fileName, plate }, push);
+                }
+                else {
+                    throw new Error('Printer is not available (no LAN or cloud connection)');
+                }
+                
+                push({
+                    type: 'done',
+                    cmd,
+                    data: result,
+                    message: `${cmd} command sent successfully`
+                });
+            } catch (error) {
+                throw new Error(`Failed to send ${cmd} command: ${error.message}`);
+            }
+            return;
+        }
+        
+        case 'printer_home': {
+            const printerId = typeof params.printer_id === 'string' ? params.printer_id.trim() : '';
+            
+            if (!printerId) {
+                throw new Error('printer_home requires printer_id');
+            }
+            
+            const cliConfig = readBambuCliConfig();
+            const machine = cliConfig.machines.find(m => m.id === printerId);
+            
+            if (!machine) {
+                throw new Error(`Printer ${printerId} not found`);
+            }
+            
+            push({ type: 'progress', message: `Sending home command to ${printerId}...` });
+            
+            try {
+                let result;
+                const backToCenterCommand = {
+                    print: {
+                        command: 'back_to_center',
+                    }
+                };
+                if (machine.ip && machine.token) {
+                    try {
+                        result = await sendCommandViaLanMqtt(machine.id, machine.ip, machine.token, backToCenterCommand);
+                    } catch (error) {
+                        if (isStudioLocalControlAvailable(machine, config)) {
+                            console.log('[printer_home] raw LAN control failed, falling back to Studio plugin:', error.message);
+                            result = await sendCommandViaStudioPlugin(machine, backToCenterCommand, config);
+                        } else {
+                            console.log('[printer_home] back_to_center failed, falling back to G28:', error.message);
+                            result = await sendGcodeSequenceViaLan(machine, ['G28']);
+                        }
+                    }
+                } else if (isStudioLocalControlAvailable(machine, config)) {
+                    result = await sendCommandViaStudioPlugin(machine, backToCenterCommand, config);
+                } else if (machine.cloud_online && cliConfig.access_token) {
+                    try {
+                        result = await sendCloudMqttCommand(printerId, backToCenterCommand, push);
+                    } catch (error) {
+                        console.log('[printer_home] back_to_center failed, falling back to G28:', error.message);
+                        result = await sendGcodeSequenceViaCloud(printerId, ['G28'], push);
+                    }
+                } else {
+                    throw new Error('Printer is not available (neither LAN nor cloud online)');
+                }
+                
+                push({
+                    type: 'done',
+                    cmd,
+                    data: result,
+                    message: 'Home command sent successfully'
+                });
+            } catch (error) {
+                throw new Error(`Failed to send home command: ${error.message}`);
+            }
+            return;
+        }
+        
+        case 'set_bed_temperature': {
+            const printerId = typeof params.printer_id === 'string' ? params.printer_id.trim() : '';
+            const temperature = typeof params.temperature === 'number' ? params.temperature : 0;
+            
+            if (!printerId) {
+                throw new Error('set_bed_temperature requires printer_id');
+            }
+            
+            const cliConfig = readBambuCliConfig();
+            const machine = cliConfig.machines.find(m => m.id === printerId);
+            
+            if (!machine) {
+                throw new Error(`Printer ${printerId} not found`);
+            }
+            
+            push({ type: 'progress', message: `Setting bed temperature to ${temperature}°C...` });
+            
+            try {
+                let result;
+                if (machine.ip && machine.token) {
+                    // LAN mode
+                    result = await sendGcodeSequenceViaLan(machine, [`M140 S${temperature}`]);
+                } else if (machine.cloud_online && cliConfig.access_token) {
+                    // Cloud mode
+                    result = await sendGcodeSequenceViaCloud(printerId, [`M140 S${temperature}`], push);
+                } else {
+                    throw new Error('Printer is not available (neither LAN nor cloud online)');
+                }
+                
+                push({
+                    type: 'done',
+                    cmd,
+                    data: result,
+                    message: `Bed temperature set to ${temperature}°C`
+                });
+            } catch (error) {
+                throw new Error(`Failed to set bed temperature: ${error.message}`);
+            }
+            return;
+        }
+        
+        case 'set_nozzle_temperature': {
+            const printerId = typeof params.printer_id === 'string' ? params.printer_id.trim() : '';
+            const temperature = typeof params.temperature === 'number' ? params.temperature : 0;
+            
+            if (!printerId) {
+                throw new Error('set_nozzle_temperature requires printer_id');
+            }
+            
+            const cliConfig = readBambuCliConfig();
+            const machine = cliConfig.machines.find(m => m.id === printerId);
+            
+            if (!machine) {
+                throw new Error(`Printer ${printerId} not found`);
+            }
+            
+            push({ type: 'progress', message: `Setting nozzle temperature to ${temperature}°C...` });
+            
+            try {
+                let result;
+                if (machine.ip && machine.token) {
+                    // LAN mode
+                    result = await sendGcodeSequenceViaLan(machine, [`M104 S${temperature}`]);
+                } else if (machine.cloud_online && cliConfig.access_token) {
+                    // Cloud mode
+                    result = await sendGcodeSequenceViaCloud(printerId, [`M104 S${temperature}`], push);
+                } else {
+                    throw new Error('Printer is not available (neither LAN nor cloud online)');
+                }
+                
+                push({
+                    type: 'done',
+                    cmd,
+                    data: result,
+                    message: `Nozzle temperature set to ${temperature}°C`
+                });
+            } catch (error) {
+                throw new Error(`Failed to set nozzle temperature: ${error.message}`);
+            }
+            return;
+        }
+        
+        case 'move_axis': {
+            const printerId = typeof params.printer_id === 'string' ? params.printer_id.trim() : '';
+            const axis = typeof params.axis === 'string' ? params.axis.toUpperCase() : '';
+            const distance = typeof params.distance === 'number' ? params.distance : 0;
+            const speed = typeof params.speed === 'number' ? params.speed : 3000;
+            
+            if (!printerId) {
+                throw new Error('move_axis requires printer_id');
+            }
+            
+            if (!['X', 'Y', 'Z', 'E'].includes(axis)) {
+                throw new Error('axis must be X, Y, Z, or E');
+            }
+            
+            const cliConfig = readBambuCliConfig();
+            const machine = cliConfig.machines.find(m => m.id === printerId);
+            
+            if (!machine) {
+                throw new Error(`Printer ${printerId} not found`);
+            }
+            
+            push({ type: 'progress', message: `Moving ${axis} axis by ${distance}mm...` });
+            
+            try {
+                let result;
+                
+                if (['X', 'Y', 'Z'].includes(axis)) {
+                    const xyzCtrlCommand = {
+                        print: {
+                            command: 'xyz_ctrl',
+                            axis: axis,
+                            dir: distance > 0 ? 1 : -1,
+                            mode: Math.abs(distance) >= 10 ? 1 : 0,
+                        }
+                    };
+                    
+                    if (machine.ip && machine.token) {
+                        try {
+                            result = await sendCommandViaLanMqtt(machine.id, machine.ip, machine.token, xyzCtrlCommand);
+                        } catch (error) {
+                            if (isStudioLocalControlAvailable(machine, config)) {
+                                console.log('[move_axis] raw LAN control failed, falling back to Studio plugin:', error.message);
+                                result = await sendCommandViaStudioPlugin(machine, xyzCtrlCommand, config);
+                            } else {
+                                console.log('[move_axis] xyz_ctrl failed, falling back to G-code:', error.message);
+                                const gcodeSequence = ['G91', `G1 ${axis}${distance} F${speed}`, 'G90'];
+                                result = await sendGcodeSequenceViaLan(machine, gcodeSequence);
+                            }
+                        }
+                    } else if (isStudioLocalControlAvailable(machine, config)) {
+                        result = await sendCommandViaStudioPlugin(machine, xyzCtrlCommand, config);
+                    } else if (machine.cloud_online && cliConfig.access_token) {
+                        try {
+                            result = await sendCloudMqttCommand(printerId, xyzCtrlCommand, push);
+                        } catch (error) {
+                            console.log('[move_axis] xyz_ctrl failed, falling back to G-code:', error.message);
+                            const gcodeSequence = ['G91', `G1 ${axis}${distance} F${speed}`, 'G90'];
+                            result = await sendGcodeSequenceViaCloud(printerId, gcodeSequence, push);
+                        }
+                    } else {
+                        throw new Error('Printer is not available (neither LAN nor cloud online)');
+                    }
+                } else {
+                    // For E axis, use G-code
+                    const gcodeSequence = [
+                        'G91',
+                        `G1 ${axis}${distance} F${speed}`,
+                        'G90',
+                    ];
+                    
+                    if (machine.ip && machine.token) {
+                        result = await sendGcodeSequenceViaLan(machine, gcodeSequence);
+                    } else if (machine.cloud_online && cliConfig.access_token) {
+                        result = await sendGcodeSequenceViaCloud(printerId, gcodeSequence, push);
+                    } else {
+                        throw new Error('Printer is not available (neither LAN nor cloud online)');
+                    }
+                }
+                
+                push({
+                    type: 'done',
+                    cmd,
+                    data: result,
+                    message: `${axis} axis moved by ${distance}mm`
+                });
+            } catch (error) {
+                throw new Error(`Failed to move axis: ${error.message}`);
+            }
+            return;
+        }
+        
+        case 'set_print_speed': {
+            const printerId = typeof params.printer_id === 'string' ? params.printer_id.trim() : '';
+            const speed = typeof params.speed === 'number' ? params.speed : 100;
+            
+            if (!printerId) {
+                throw new Error('set_print_speed requires printer_id');
+            }
+            
+            if (speed < 10 || speed > 200) {
+                throw new Error('speed must be between 10 and 200 (percentage)');
+            }
+            
+            const cliConfig = readBambuCliConfig();
+            const machine = cliConfig.machines.find(m => m.id === printerId);
+            
+            if (!machine) {
+                throw new Error(`Printer ${printerId} not found`);
+            }
+            
+            push({ type: 'progress', message: `Setting print speed to ${speed}%...` });
+            
+            try {
+                const command = {
+                    print: {
+                        command: 'print_speed',
+                        param: speed.toString()
+                    }
+                };
+                
+                let result;
+                if (machine.ip && machine.token) {
+                    result = await sendCommandViaLanMqtt(machine.id, machine.ip, machine.token, command);
+                } else if (machine.cloud_online && cliConfig.access_token) {
+                    result = await sendCloudMqttCommand(printerId, command, push);
+                } else {
+                    throw new Error('Printer is not available');
+                }
+                
+                push({
+                    type: 'done',
+                    cmd,
+                    data: result,
+                    message: `Print speed set to ${speed}%`
+                });
+            } catch (error) {
+                throw new Error(`Failed to set print speed: ${error.message}`);
+            }
+            return;
+        }
+        
+        case 'set_fan_speed': {
+            const printerId = typeof params.printer_id === 'string' ? params.printer_id.trim() : '';
+            const fan = typeof params.fan === 'string' ? params.fan : 'part';
+            const speed = typeof params.speed === 'number' ? params.speed : 100;
+            
+            if (!printerId) {
+                throw new Error('set_fan_speed requires printer_id');
+            }
+            
+            if (!['part', 'aux', 'chamber'].includes(fan)) {
+                throw new Error('fan must be part, aux, or chamber');
+            }
+            
+            if (speed < 0 || speed > 100) {
+                throw new Error('speed must be between 0 and 100 (percentage)');
+            }
+            
+            const cliConfig = readBambuCliConfig();
+            const machine = cliConfig.machines.find(m => m.id === printerId);
+            
+            if (!machine) {
+                throw new Error(`Printer ${printerId} not found`);
+            }
+            
+            push({ type: 'progress', message: `Setting ${fan} fan speed to ${speed}%...` });
+            
+            try {
+                let gcodeCommand;
+                
+                if (fan === 'part') {
+                    // Part cooling fan (M106)
+                    const pwm = Math.round((speed / 100) * 255);
+                    gcodeCommand = `M106 S${pwm}`;
+                } else if (fan === 'aux') {
+                    // Auxiliary fan
+                    gcodeCommand = `M106 P2 S${Math.round((speed / 100) * 255)}`;
+                } else {
+                    // Chamber fan
+                    gcodeCommand = `M106 P3 S${Math.round((speed / 100) * 255)}`;
+                }
+                
+                let result;
+                if (machine.ip && machine.token) {
+                    // LAN mode
+                    result = await sendGcodeSequenceViaLan(machine, [gcodeCommand]);
+                } else if (machine.cloud_online && cliConfig.access_token) {
+                    // Cloud mode
+                    result = await sendGcodeSequenceViaCloud(printerId, [gcodeCommand], push);
+                } else {
+                    throw new Error('Printer is not available (neither LAN nor cloud online)');
+                }
+                
+                push({
+                    type: 'done',
+                    cmd,
+                    data: result,
+                    message: `${fan} fan speed set to ${speed}%`
+                });
+            } catch (error) {
+                throw new Error(`Failed to set fan speed: ${error.message}`);
+            }
+            return;
+        }
+        
+        case 'extrude_filament': {
+            const printerId = typeof params.printer_id === 'string' ? params.printer_id.trim() : '';
+            const length = typeof params.length === 'number' ? params.length : 10;
+            const speed = typeof params.speed === 'number' ? params.speed : 300;
+            
+            if (!printerId) {
+                throw new Error('extrude_filament requires printer_id');
+            }
+            
+            if (Math.abs(length) > 100) {
+                throw new Error('length must be between -100 and 100 mm');
+            }
+            
+            const cliConfig = readBambuCliConfig();
+            const machine = cliConfig.machines.find(m => m.id === printerId);
+            
+            if (!machine) {
+                throw new Error(`Printer ${printerId} not found`);
+            }
+            
+            const action = length > 0 ? 'Extruding' : 'Retracting';
+            push({ type: 'progress', message: `${action} ${Math.abs(length)}mm of filament...` });
+            
+            try {
+                const gcodeSequence = [
+                    'G91',
+                    `G1 E${length} F${speed}`,
+                    'G90',
+                ];
+                
+                let result;
+                if (machine.ip && machine.token) {
+                    // LAN mode
+                    result = await sendGcodeSequenceViaLan(machine, gcodeSequence);
+                } else if (machine.cloud_online && cliConfig.access_token) {
+                    // Cloud mode
+                    result = await sendGcodeSequenceViaCloud(printerId, gcodeSequence, push);
+                } else {
+                    throw new Error('Printer is not available (neither LAN nor cloud online)');
+                }
+                
+                push({
+                    type: 'done',
+                    cmd,
+                    data: result,
+                    message: `${action} ${Math.abs(length)}mm completed`
+                });
+            } catch (error) {
+                throw new Error(`Failed to extrude filament: ${error.message}`);
+            }
+            return;
+        }
+        
+        case 'send_gcode': {
+            const printerId = typeof params.printer_id === 'string' ? params.printer_id.trim() : '';
+            const gcode = typeof params.gcode === 'string' ? params.gcode.trim() : '';
+            
+            if (!printerId) {
+                throw new Error('send_gcode requires printer_id');
+            }
+            
+            if (!gcode) {
+                throw new Error('send_gcode requires gcode parameter');
+            }
+            
+            const cliConfig = readBambuCliConfig();
+            const machine = cliConfig.machines.find(m => m.id === printerId);
+            
+            if (!machine) {
+                throw new Error(`Printer ${printerId} not found`);
+            }
+            
+            push({ type: 'progress', message: `Sending G-code: ${gcode.substring(0, 50)}...` });
+            
+            try {
+                const gcodeLines = gcode.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+                
+                let result;
+                if (machine.ip && machine.token) {
+                    // LAN mode
+                    result = await sendGcodeSequenceViaLan(machine, gcodeLines);
+                } else if (machine.cloud_online && cliConfig.access_token) {
+                    // Cloud mode
+                    result = await sendGcodeSequenceViaCloud(printerId, gcodeLines, push);
+                } else {
+                    throw new Error('Printer is not available (neither LAN nor cloud online)');
+                }
+                
+                push({
+                    type: 'done',
+                    cmd,
+                    data: result,
+                    message: 'G-code sent successfully'
+                });
+            } catch (error) {
+                throw new Error(`Failed to send G-code: ${error.message}`);
+            }
+            return;
+        }
+        
+        case 'ams_status': {
+            const printerId = typeof params.printer_id === 'string' ? params.printer_id.trim() : '';
+            
+            if (!printerId) {
+                throw new Error('ams_status requires printer_id');
+            }
+            
+            const cliConfig = readBambuCliConfig();
+            const machine = cliConfig.machines.find(m => m.id === printerId);
+            
+            if (!machine) {
+                throw new Error(`Printer ${printerId} not found`);
+            }
+            
+            push({ type: 'progress', message: `Getting AMS status from ${printerId}...` });
+            
+            try {
+                // 从 MQTT 状态中获取 AMS 信息
+                let mqttState = await fetchMqttStatus(machine);
+                if ((!mqttState.mqtt || !Array.isArray(mqttState.ams?.ams)) && machine.cloud_online && cliConfig.access_token && cliConfig.mqtt_user) {
+                    const cloudMqttState = await fetchCloudMqttStatus(machine, cliConfig);
+                    mqttState = mergeTelemetryState(mqttState, cloudMqttState);
+                }
+
+                const amsModules = normalizeAmsModules(mqttState.ams);
+                const activeTray = normalizeActiveTray(mqttState.ams);
+                
+                push({
+                    type: 'done',
+                    cmd,
+                    data: {
+                        printer_id: printerId,
+                        ams_modules: amsModules,
+                        active_tray: activeTray,
+                        has_external_spool: Boolean(mqttState.external?.color && mqttState.external?.type)
+                    },
+                    message: 'AMS status retrieved successfully'
+                });
+            } catch (error) {
+                throw new Error(`Failed to get AMS status: ${error.message}`);
+            }
+            return;
+        }
 
         case 'printer_login_hint': {
             const cliPath = resolveBambuCliPath(config);
