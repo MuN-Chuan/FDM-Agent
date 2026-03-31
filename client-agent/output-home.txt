@@ -1,0 +1,19 @@
+Testing printer_home...
+[printer_home] LAN MQTT failed, trying Studio local plugin: Connection refused: Not authorized
+[printer_home] Studio local failed (Bambu Studio bridge failed: connect_ret=0, connect_status=1, send_ret=-4, connect_message=5), trying Studio cloud bridge
+[printer_home] Studio cloud bridge failed, falling back to raw cloud MQTT: Bambu Studio cloud bridge failed: use_count = 4
+{"ok":false,"config_ret":0,"log_ret":0,"cert_ret":0,"country_ret":0,"start_ret":0,"check_cert_ret":0,"server_ret":0,"user_login":true,"subscribe_ret":0,"add_subscribe_ret":0,"connect_ret":0,"connect_status":-9999,"send_ret":-2,"connect_dev_id":"0309AA3C1400422","connect_message":"","sequence_id":"20002","response":"{\"print\":{\"nozzle_temper\":22.59375,\"command\":\"push_status\",\"msg\":1,\"sequence_id\":\"1994\"}}","message_count":1}
+[printer_home] Studio local failed (Bambu Studio bridge failed: connect_ret=0, connect_status=1, send_ret=-4, connect_message=5), falling back to raw cloud MQTT
+Finished successfully. Last push state: {
+  type: 'warning',
+  cmd: 'printer_home',
+  data: {
+    success: false,
+    soft_rejection: true,
+    err_code: 84033543,
+    message: '鎵撳嵃鏈哄綋鍓嶇姸鎬佷笉鍏佽姝ゆ搷浣滐紙鍙兘姝ｅ湪鎵撳嵃锛屾垨闇€瑕佸厛鎵嬪姩纭褰掗浂锛?,
+    command: { print: [Object] },
+    responses: [ [Object] ]
+  },
+  message: '鎵撳嵃鏈哄綋鍓嶇姸鎬佷笉鍏佽姝ゆ搷浣滐紙鍙兘姝ｅ湪鎵撳嵃锛屾垨闇€瑕佸厛鎵嬪姩纭褰掗浂锛?
+}

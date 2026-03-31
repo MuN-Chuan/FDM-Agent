@@ -13,7 +13,7 @@
 export type AgentStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 export interface AgentMessage {
-    type: 'hello' | 'status' | 'progress' | 'done' | 'error' | 'pong';
+    type: 'hello' | 'status' | 'progress' | 'done' | 'error' | 'pong' | 'warning';
     cmd?: string;
     job_id?: string;
     step?: number;
@@ -168,15 +168,17 @@ class ClientAgentBridgeClass {
         return this.send('printer_light_control', { printer_id: printerId, mode });
     }
     getAmsStatus(printerId: string) { return this.send('ams_status', { printer_id: printerId }); }
-    homePrinter(printerId: string) { return this.send('printer_home', { printer_id: printerId }); }
-    setBedTemperature(printerId: string, temp: number) {
-        return this.send('set_bed_temperature', { printer_id: printerId, temperature: temp });
+    homePrinter(printerId: string, cloudMode?: string, useSafetyPrep?: boolean) { 
+        return this.send('printer_home', { printer_id: printerId, cloud_mode: cloudMode, use_safety_prep: useSafetyPrep }); 
     }
-    setNozzleTemperature(printerId: string, temp: number) {
-        return this.send('set_nozzle_temperature', { printer_id: printerId, temperature: temp });
+    setBedTemperature(printerId: string, temp: number, cloudMode?: string) {
+        return this.send('set_bed_temperature', { printer_id: printerId, temperature: temp, cloud_mode: cloudMode });
     }
-    moveAxis(printerId: string, axis: 'X' | 'Y' | 'Z' | 'E', distance: number, speed?: number) {
-        return this.send('move_axis', { printer_id: printerId, axis, distance, speed });
+    setNozzleTemperature(printerId: string, temp: number, cloudMode?: string) {
+        return this.send('set_nozzle_temperature', { printer_id: printerId, temperature: temp, cloud_mode: cloudMode });
+    }
+    moveAxis(printerId: string, axis: 'X' | 'Y' | 'Z' | 'E', distance: number, speed?: number, cloudMode?: string, useSafetyPrep?: boolean) {
+        return this.send('move_axis', { printer_id: printerId, axis, distance, speed, cloud_mode: cloudMode, use_safety_prep: useSafetyPrep });
     }
     setPrintSpeed(printerId: string, speed: number) {
         return this.send('set_print_speed', { printer_id: printerId, speed });

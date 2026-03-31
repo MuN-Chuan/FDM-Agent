@@ -114,6 +114,12 @@ export const PrinterControlPage: React.FC = () => {
             return;
         }
 
+        if (lastMessage.type === 'warning') {
+            // Soft printer warnings (e.g. state interlocks) — show as a transient non-blocking notice
+            setActionError(lastMessage.message || t('printer.actionFailed'));
+            return;
+        }
+
         setActionError('');
 
         if (lastMessage.type !== 'done') return;

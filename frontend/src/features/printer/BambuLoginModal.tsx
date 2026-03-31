@@ -58,6 +58,17 @@ export const BambuLoginModal: React.FC<BambuLoginModalProps> = ({
     }, [isOpen]);
 
     useEffect(() => {
+        const trimmedAccount = account.trim();
+        // Auto-detect Chinese phone number (11 digits starting with 1)
+        if (/^1\d{10}$/.test(trimmedAccount)) {
+            if (accountType !== 'phone' || region !== 'cn') {
+                setAccountType('phone');
+                setRegion('cn');
+            }
+        }
+    }, [account, accountType, region]);
+
+    useEffect(() => {
         if (stage === 'verify_code') {
             if (lockedAccount) {
                 setAccount(lockedAccount);

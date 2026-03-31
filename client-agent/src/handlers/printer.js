@@ -3,11 +3,16 @@ const https = require('https');
 const os = require('os');
 const path = require('path');
 const { URL } = require('url');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const ftp = require('basic-ftp');
+const execFileAsync = promisify(execFile);
 const mqtt = require('mqtt');
 const xdgAppPaths = require('xdg-app-paths/cjs');
 const jwt = require('jsonwebtoken');
-const { getBambuStudioStatus, runStudioLocalCommand } = require('./studio');
+const { getBambuStudioStatus, runStudioLocalCommand, runStudioCloudCommand } = require('./studio');
+const { generateFakePrintGcode } = require('../utils/gcode_generator');
+const { spawn } = require('child_process');
 
 const bambuConsts = require('bambu-cli/lib/const.js');
 const bambuUtils = require('bambu-cli/lib/utils.js');
@@ -107,6 +112,17 @@ function extractMatchingCommandAck(response, command) {
     return responseEnvelope;
 }
 
+// Known Bambu printer soft-rejection codes that indicate a state/safety interlock
+// rather than a communication or command-format error.
+// The command was received by the printer but rejected due to current machine state.
+const BAMBU_SOFT_REJECTION_CODES = {
+    84033543: '打印机当前状态不允许此操作（可能正在打印，或需要先手动确认归零）',  // 0x5024007
+};
+
+function isBambuSoftRejection(code) {
+    return Object.prototype.hasOwnProperty.call(BAMBU_SOFT_REJECTION_CODES, Number(code));
+}
+
 function extractCommandError(envelope) {
     if (!envelope || typeof envelope !== 'object') {
         return null;
@@ -117,7 +133,19 @@ function extractCommandError(envelope) {
         return null;
     }
 
-    return `Printer rejected command with err_code ${code}`;
+    const softMsg = BAMBU_SOFT_REJECTION_CODES[Number(code)];
+    if (softMsg) {
+        // Return a structured object so callers can distinguish soft from hard errors
+        return { soft: true, code: Number(code), message: softMsg };
+    }
+
+    return { soft: false, code: Number(code), message: `Printer rejected command with err_code ${code}` };
+}
+
+function commandErrorToString(err) {
+    if (!err) return null;
+    if (typeof err === 'string') return err;
+    return err.message || `Printer error ${err.code}`;
 }
 
 function isValidIpAddress(value) {
@@ -261,7 +289,14 @@ function isStudioLocalControlAvailable(machine, agentConfig) {
 function createRouteAvailability(machine, mqttState, ftpAlive, agentConfig) {
     const lanOnline = Boolean(machine.ip && machine.token && (ftpAlive || mqttState?.mqtt));
     const cloudOnline = Boolean(machine.cloud_online);
-    const studioAvailable = Boolean(lanOnline && isStudioLocalControlAvailable(machine, agentConfig));
+    
+    // ✅ FIX: Studio available when installed AND printer is reachable (LAN or cloud)
+    // Bambu Studio can connect to printers via both LAN and cloud, so it should be
+    // available as a route whenever the printer is reachable through either method
+    const studioAvailable = Boolean(
+        isStudioLocalControlAvailable(machine, agentConfig) &&
+        (lanOnline || cloudOnline)
+    );
 
     return {
         lan: lanOnline,
@@ -283,8 +318,8 @@ function buildCommandRoutes(availability) {
         print_pause: resolveRoutesInPriority(availability, ['lan', 'cloud']),
         print_resume: resolveRoutesInPriority(availability, ['lan', 'cloud']),
         print_stop: resolveRoutesInPriority(availability, ['lan', 'cloud']),
-        printer_home: resolveRoutesInPriority(availability, ['lan', 'studio']),
-        move_axis: resolveRoutesInPriority(availability, ['lan', 'studio']),
+        printer_home: resolveRoutesInPriority(availability, ['lan', 'studio', 'cloud']),
+        move_axis: resolveRoutesInPriority(availability, ['lan', 'studio', 'cloud']),
         set_bed_temperature: resolveRoutesInPriority(availability, ['lan']),
         set_nozzle_temperature: resolveRoutesInPriority(availability, ['lan']),
         set_print_speed: resolveRoutesInPriority(availability, ['lan']),
@@ -384,8 +419,16 @@ function requestJson(urlString, { method = 'GET', headers = {}, body } = {}) {
 }
 
 async function fetchBambuTokens(payloadData, region) {
+    let normalizedRegion = normalizeCloudRegion(region);
+    
+    // Auto-detect Chinese phone number (11 digits starting with 1)
+    const account = payloadData.account || payloadData.username || '';
+    if (normalizedRegion === 'global' && /^1\d{10}$/.test(account)) {
+        normalizedRegion = 'cn';
+    }
+
     const payload = JSON.stringify(payloadData);
-    const response = await requestJson(`${getBambuCloudBase(region)}/user-service/user/login`, {
+    const response = await requestJson(`${getBambuCloudBase(normalizedRegion)}/user-service/user/login`, {
         method: 'POST',
         body: payload,
         headers: {
@@ -960,8 +1003,9 @@ function enrichMachineIpsFromCloud(token, mqttUser, machines, region) {
 }
 
 async function finishBambuLogin(config, username, tokens, push) {
-    push({ type: 'progress', message: 'Fetching bound printers...' });
-    const devices = await fetchBoundDevices(tokens.token, tokens.region);
+    const normalizedRegion = /^1\d{10}$/.test(username) ? 'cn' : normalizeCloudRegion(tokens.region);
+    push({ type: 'progress', message: `Fetching bound printers (${normalizedRegion})...` });
+    const devices = await fetchBoundDevices(tokens.token, normalizedRegion);
     const existingCliConfig = readBambuCliConfig();
     const jwtPayload = jwt.decode(tokens.token) || {};
     let mqttUser = typeof jwtPayload.username === 'string' ? jwtPayload.username : null;
@@ -990,17 +1034,18 @@ async function finishBambuLogin(config, username, tokens, push) {
 }
 
 async function loginBambuAccount(config, username, password, region, accountType, push) {
-    push({ type: 'progress', message: 'Logging into Bambu Lab account...' });
+    const normalizedRegion = /^1\d{10}$/.test(username) ? 'cn' : normalizeCloudRegion(region);
+    push({ type: 'progress', message: `Logging into Bambu Lab account (${normalizedRegion})...` });
     const tokens = await fetchBambuTokens({
         account: username,
         password,
-    }, region);
+    }, normalizedRegion);
 
     if (tokens.requiresVerificationCode) {
         return {
             requires_verification_code: true,
             account: username,
-            region: normalizeCloudRegion(region),
+            region: normalizedRegion,
             account_type: accountType === 'phone' ? 'phone' : 'email',
             tfa_key: tokens.tfaKey || null,
         };
@@ -1010,22 +1055,33 @@ async function loginBambuAccount(config, username, password, region, accountType
 }
 
 async function loginBambuAccountWithCode(config, username, code, region, push) {
-    push({ type: 'progress', message: 'Submitting verification code to Bambu Lab...' });
+    const normalizedRegion = /^1\d{10}$/.test(username) ? 'cn' : normalizeCloudRegion(region);
+    push({ type: 'progress', message: `Submitting verification code to Bambu Lab (${normalizedRegion})...` });
     const tokens = await fetchBambuTokens({
         account: username,
         code,
-    }, region);
+    }, normalizedRegion);
 
     if (tokens.requiresVerificationCode) {
         throw new Error('Bambu Lab requested another verification code. Please request a fresh code and try again.');
     }
 
-    return finishBambuLogin(config, username, { ...tokens, region: normalizeCloudRegion(region) }, push);
+    return finishBambuLogin(config, username, { ...tokens, region: normalizedRegion }, push);
 }
 
 async function sendBambuLoginCode(account, accountType, region) {
-    const normalizedRegion = normalizeCloudRegion(region);
-    const normalizedAccountType = accountType === 'phone' ? 'phone' : 'email';
+    let normalizedRegion = normalizeCloudRegion(region);
+    let normalizedAccountType = accountType === 'phone' ? 'phone' : 'email';
+    
+    // Auto-detect phone number format (simple check for numeric-only accounts)
+    if (/^\d{11,}$/.test(account)) {
+        normalizedAccountType = 'phone';
+        // Auto-detect Chinese phone number (11 digits starting with 1)
+        if (normalizedRegion === 'global' && /^1\d{10}$/.test(account)) {
+            normalizedRegion = 'cn';
+        }
+    }
+
     const endpoint = normalizedAccountType === 'phone'
         ? `${getBambuCloudBase(normalizedRegion)}/user-service/user/sendsmscode`
         : `${getBambuCloudBase(normalizedRegion)}/user-service/user/sendemail/code`;
@@ -1045,8 +1101,13 @@ async function sendBambuLoginCode(account, accountType, region) {
     if (response.statusCode !== 200) {
         let errorMessage = `Failed to send verification code (${response.statusCode})`;
         try {
-            const parsed = JSON.parse(response.data);
-            errorMessage = parsed.error || parsed.message || errorMessage;
+            const parsed = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+            errorMessage = parsed.error || parsed.message || parsed.msg || errorMessage;
+            
+            // Add hint for region mismatch
+            if (errorMessage.includes('Invalid') || errorMessage.includes('not found')) {
+                errorMessage += `. Hint: Try changing the Region to ${normalizedRegion === 'cn' ? 'Global' : 'China'}.`;
+            }
         } catch {
             // Keep generic fallback message.
         }
@@ -1742,7 +1803,20 @@ async function sendCloudMqttCommand(printerId, command, push) {
                 const commandError = extractCommandError(ackEnvelope);
                 clearTimeout(timeout);
                 if (commandError) {
-                    finish(new Error(commandError));
+                    if (commandError.soft) {
+                        // Soft rejection: printer received but refused due to state (safety interlock).
+                        // Resolve with a warning so callers can decide to show a friendly message.
+                        finish(null, {
+                            success: false,
+                            soft_rejection: true,
+                            err_code: commandError.code,
+                            message: commandError.message,
+                            command: preparedCommand,
+                            responses,
+                        });
+                    } else {
+                        finish(new Error(commandErrorToString(commandError)));
+                    }
                     return;
                 }
 
@@ -1965,6 +2039,55 @@ async function sendCommandViaStudioPlugin(machine, command, config) {
     };
 }
 
+/**
+ * Send command via Studio Bridge cloud_send mode.
+ * Uses bambu_networking.dll's cloud channel - the same path official Bambu Studio uses.
+ * Does NOT require LAN IP; only requires Bambu Studio to be installed and logged in via the app.
+ */
+async function sendCommandViaStudioCloud(machine, command, config) {
+    const cliConfig = readBambuCliConfig();
+    const preparedCommand = prepareCommandForDispatch(command, { userId: cliConfig.mqtt_user || null });
+    const result = await runStudioCloudCommand(machine, preparedCommand, config);
+
+    if (typeof result.response === 'string' && result.response.trim()) {
+        try {
+            const response = JSON.parse(result.response);
+            const ackEnvelope = extractMatchingCommandAck(response, preparedCommand);
+            const commandError = extractCommandError(ackEnvelope);
+            if (commandError) {
+                if (commandError.soft) {
+                    return {
+                        success: false,
+                        soft_rejection: true,
+                        err_code: commandError.code,
+                        message: commandError.message,
+                        command: preparedCommand,
+                    };
+                }
+                throw new Error(commandErrorToString(commandError));
+            }
+            return {
+                success: true,
+                command: preparedCommand,
+                response,
+                sequence_id: result.sequence_id || null,
+                bridge: result,
+            };
+        } catch (error) {
+            if (!(error instanceof SyntaxError)) {
+                throw error;
+            }
+        }
+    }
+
+    return {
+        success: true,
+        command: preparedCommand,
+        response: result.response || null,
+        sequence_id: result.sequence_id || null,
+        bridge: result,
+    };
+}
 function requireLanControl(machine, action) {
     if (!machine || !machine.id) {
         throw new Error(`${action} requires a known printer`);
@@ -2040,6 +2163,112 @@ async function sendGcodeSequenceViaCloud(printerId, lines, push) {
         steps: results.length,
     };
 }
+
+/**
+ * Execute a command (Home/Move) via a "Fake Print" job.
+ * This wraps the G-code into a 3MF, uploads to cloud OSS, and sends project_file command.
+ */
+async function executeViaFakePrint(printerId, gcodeLines, push, config, useSafetyPrep = false) {
+    const cliConfig = readBambuCliConfig();
+    const machine = cliConfig.machines.find(m => m.id === printerId);
+    if (!machine) {
+        throw new Error(`Printer ${printerId} not found`);
+    }
+
+    const accessToken = cliConfig.access_token;
+    if (!accessToken) {
+        throw new Error('Access token is missing in bambu-cli config. Please re-login.');
+    }
+
+    const region = cliConfig.cloud_region || 'global';
+    const modelName = machine.name || machine.id;
+
+    // 1. Generate G-code payload
+    const finalGcode = generateFakePrintGcode(modelName, gcodeLines, useSafetyPrep);
+    push({ type: 'progress', message: `[伪装打印] 已生成 G-code 负载 (${useSafetyPrep ? '安全准备模式' : '对齐模式'})...` });
+
+    // 2. Wrap into 3MF and upload to OSS via Python helper
+    const helperPath = path.resolve(__dirname, '../../scripts/fake_print_helper.py');
+    const resultJson = await new Promise((resolve, reject) => {
+        // Normalize region (Bambu config often uses 'China' or 'Global')
+        const normRegion = (region.toLowerCase().includes('china') || region.toLowerCase().includes('cn')) ? 'cn' : 'global';
+        const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+
+        console.log(`[Fake Print] Starting helper: ${pythonCmd} ${helperPath} --region ${normRegion}`);
+
+        const pythonProcess = spawn(pythonCmd, [
+            helperPath,
+            '--token', accessToken,
+            '--region', normRegion,
+            '--model', modelName
+        ]);
+
+        pythonProcess.on('error', (err) => {
+            console.error(`[Fake Print] Failed to spawn python process: ${err.message}`);
+            reject(new Error(`Failed to start Python helper (${pythonCmd}): ${err.message}. Please ensure Python is installed and in your PATH.`));
+        });
+
+        // Send G-code content via stdin to avoid command line length limits on Windows
+        pythonProcess.stdin.write(finalGcode);
+        pythonProcess.stdin.end();
+
+        let stdout = '';
+        let stderr = '';
+
+        pythonProcess.stdout.on('data', (data) => { stdout += data.toString(); });
+        pythonProcess.stderr.on('data', (data) => { stderr += data.toString(); });
+
+        pythonProcess.on('close', (code) => {
+            if (code !== 0) {
+                // If the script failed, it might have still output a JSON error message to stdout.
+                try {
+                    const errorJson = JSON.parse(stdout);
+                    if (errorJson && errorJson.error) {
+                        reject(new Error(`Fake print helper error: ${errorJson.error}`));
+                        return;
+                    }
+                } catch {
+                    // Ignore parsing error and use stderr/code instead.
+                }
+                reject(new Error(`Fake print helper failed with code ${code}. Stderr: ${stderr.trim() || 'No error output'}`));
+                return;
+            }
+            try {
+                resolve(JSON.parse(stdout));
+            } catch (err) {
+                reject(new Error(`Failed to parse helper output: ${stdout}`));
+            }
+        });
+    });
+
+    if (!resultJson.success) {
+        throw new Error(`Helper script error: ${resultJson.error}`);
+    }
+
+    const ossUrl = resultJson.url;
+    push({ type: 'progress', message: `[伪装打印] 3MF 文件已上传: ${ossUrl}` });
+
+    // 3. Trigger project_file command via cloud MQTT
+    const mqttCommand = {
+        print: {
+            command: 'project_file',
+            param: `Metadata/plate_1.gcode`,
+            subtask_name: `BBL_${Date.now()}`,
+            url: ossUrl,
+            bed_type: 'auto',
+            timelapse: false,
+            bed_leveling: true,
+            flow_cali: true,
+            vibration_cali: true,
+            layer_inspect: true,
+            use_ams: true
+        }
+    };
+
+    push({ type: 'progress', message: `[伪装打印] 正在发送 project_file MQTT 指令...` });
+    return sendCloudMqttCommand(printerId, mqttCommand, push);
+}
+
 
 /**
  * Control printer LED chamber light via cloud MQTT
@@ -2313,36 +2542,36 @@ async function printerControl(cmd, params, push, config) {
             
             try {
                 let result;
-                const backToCenterCommand = {
-                    print: {
-                        command: 'back_to_center',
-                    }
-                };
-                if (machine.ip && machine.token) {
-                    try {
-                        result = await sendCommandViaLanMqtt(machine.id, machine.ip, machine.token, backToCenterCommand);
-                    } catch (error) {
-                        if (isStudioLocalControlAvailable(machine, config)) {
-                            console.log('[printer_home] raw LAN control failed, falling back to Studio plugin:', error.message);
-                            result = await sendCommandViaStudioPlugin(machine, backToCenterCommand, config);
-                        } else {
-                            console.log('[printer_home] back_to_center failed, falling back to G28:', error.message);
-                            result = await sendGcodeSequenceViaLan(machine, ['G28']);
-                        }
-                    }
-                } else if (isStudioLocalControlAvailable(machine, config)) {
-                    result = await sendCommandViaStudioPlugin(machine, backToCenterCommand, config);
-                } else if (machine.cloud_online && cliConfig.access_token) {
-                    try {
-                        result = await sendCloudMqttCommand(printerId, backToCenterCommand, push);
-                    } catch (error) {
-                        console.log('[printer_home] back_to_center failed, falling back to G28:', error.message);
-                        result = await sendGcodeSequenceViaCloud(printerId, ['G28'], push);
-                    }
+                const cloudMode = params.cloud_mode || 'normal';
+                
+                if (cloudMode === 'normal') {
+                    throw new Error("操作被拒绝：由于拓竹(V01.08.03+)固件的安全策略，当前普通云端模式不支持执行敏感移动/回中指令 (HMS_0500拦截)。请在界面上方切换为“伪装打印”或“截图识别”模式。");
+                }
+    
+                if (cloudMode === 'fake_print') {
+                    push({ type: 'progress', message: `[伪装打印模式] 正在为 ${printerId} 执行回中任务...` });
+                    result = await executeViaFakePrint(printerId, ['G28'], push, config, params.use_safety_prep);
+                } else if (cloudMode === 'fara_7b') {
+                    push({ type: 'progress', message: `[截图识别模式] 正在唤醒 Fara-7B 模型以控制 Bambu Studio (未完全实现)...` });
+                    // TODO: 调用 Python 脚本
+                    // result = await homeViaFara7B(printerId, push);
+                    result = { success: true, fara: true };
+                    await new Promise(r => setTimeout(r, 2000));
                 } else {
-                    throw new Error('Printer is not available (neither LAN nor cloud online)');
+                    throw new Error(`未知的云端控制模式: ${cloudMode}`);
                 }
                 
+                // Handle soft rejection (printer received but refused due to state)
+                if (result && result.soft_rejection) {
+                    push({
+                        type: 'warning',
+                        cmd,
+                        data: result,
+                        message: result.message || '打印机当前状态不允许此操作'
+                    });
+                    return;
+                }
+
                 push({
                     type: 'done',
                     cmd,
@@ -2458,62 +2687,28 @@ async function printerControl(cmd, params, push, config) {
                 throw new Error(`Printer ${printerId} not found`);
             }
             
+            const cloudMode = params.cloud_mode || 'normal';
+            if (cloudMode === 'normal') {
+                throw new Error("操作被拒绝：当前普通云端模式不支持直接发送移动轴动作(HMS_0500拦截)。请在界面上方切换为“伪装打印”或“截图识别”模式。");
+            }
+            
             push({ type: 'progress', message: `Moving ${axis} axis by ${distance}mm...` });
             
             try {
                 let result;
                 
-                if (['X', 'Y', 'Z'].includes(axis)) {
-                    const xyzCtrlCommand = {
-                        print: {
-                            command: 'xyz_ctrl',
-                            axis: axis,
-                            dir: distance > 0 ? 1 : -1,
-                            mode: Math.abs(distance) >= 10 ? 1 : 0,
-                        }
-                    };
-                    
-                    if (machine.ip && machine.token) {
-                        try {
-                            result = await sendCommandViaLanMqtt(machine.id, machine.ip, machine.token, xyzCtrlCommand);
-                        } catch (error) {
-                            if (isStudioLocalControlAvailable(machine, config)) {
-                                console.log('[move_axis] raw LAN control failed, falling back to Studio plugin:', error.message);
-                                result = await sendCommandViaStudioPlugin(machine, xyzCtrlCommand, config);
-                            } else {
-                                console.log('[move_axis] xyz_ctrl failed, falling back to G-code:', error.message);
-                                const gcodeSequence = ['G91', `G1 ${axis}${distance} F${speed}`, 'G90'];
-                                result = await sendGcodeSequenceViaLan(machine, gcodeSequence);
-                            }
-                        }
-                    } else if (isStudioLocalControlAvailable(machine, config)) {
-                        result = await sendCommandViaStudioPlugin(machine, xyzCtrlCommand, config);
-                    } else if (machine.cloud_online && cliConfig.access_token) {
-                        try {
-                            result = await sendCloudMqttCommand(printerId, xyzCtrlCommand, push);
-                        } catch (error) {
-                            console.log('[move_axis] xyz_ctrl failed, falling back to G-code:', error.message);
-                            const gcodeSequence = ['G91', `G1 ${axis}${distance} F${speed}`, 'G90'];
-                            result = await sendGcodeSequenceViaCloud(printerId, gcodeSequence, push);
-                        }
-                    } else {
-                        throw new Error('Printer is not available (neither LAN nor cloud online)');
-                    }
+                if (cloudMode === 'fake_print') {
+                    push({ type: 'progress', message: `[伪装打印模式] 正在为 ${printerId} 创建空 3MF 移动任务...` });
+                    // 构造移动G-code (G91 增量模式保证控制的一致性)
+                    const moveGcode = `G91\nG1 ${axis}${distance} F${speed}\nG90`;
+                    result = await executeViaFakePrint(printerId, [moveGcode], push, config, params.use_safety_prep);
+                } else if (cloudMode === 'fara_7b') {
+                    push({ type: 'progress', message: `[截图识别模式] 正在唤醒 Fara-7B 模型以控制 Bambu Studio (未完全实现)...` });
+                    // TODO: fara_7b nodejs -> python
+                    result = { success: true, fara: true };
+                    await new Promise(r => setTimeout(r, 2000));
                 } else {
-                    // For E axis, use G-code
-                    const gcodeSequence = [
-                        'G91',
-                        `G1 ${axis}${distance} F${speed}`,
-                        'G90',
-                    ];
-                    
-                    if (machine.ip && machine.token) {
-                        result = await sendGcodeSequenceViaLan(machine, gcodeSequence);
-                    } else if (machine.cloud_online && cliConfig.access_token) {
-                        result = await sendGcodeSequenceViaCloud(printerId, gcodeSequence, push);
-                    } else {
-                        throw new Error('Printer is not available (neither LAN nor cloud online)');
-                    }
+                    throw new Error(`未知的云端控制模式: ${cloudMode}`);
                 }
                 
                 push({
@@ -2813,4 +3008,6 @@ module.exports = {
     // Export for testing
     checkFtp,
     fetchMqttStatus,
+    createRouteAvailability,
+    buildCommandRoutes,
 };

@@ -93,20 +93,26 @@ async function ensureStudioBridgeBuilt() {
     }
 
     fs.mkdirSync(path.dirname(BRIDGE_BINARY), { recursive: true });
+    // Use 'call' prefix to invoke the .bat file correctly under cmd.exe.
+    // Without 'call', cmd.exe /s strips outer quotes and misparses the path.
+    // Also convert forward slashes to backslashes for Windows compatibility.
+    const vcvarsPathNative = VCVARS64_PATH.replace(/\//g, '\\');
+    const bridgeBinaryNative = BRIDGE_BINARY.replace(/\//g, '\\');
+    const bridgeSourceNative = BRIDGE_SOURCE.replace(/\//g, '\\');
     const compileCommand = [
-        `"${VCVARS64_PATH}"`,
+        `call "${vcvarsPathNative}"`,
         '&&',
         'cl.exe',
         '/nologo',
         '/std:c++17',
         '/EHsc',
         '/O2',
-        `/Fe:"${BRIDGE_BINARY}"`,
-        `"${BRIDGE_SOURCE}"`,
+        `/Fe:"${bridgeBinaryNative}"`,
+        `"${bridgeSourceNative}"`,
     ].join(' ');
 
     try {
-        await execFileAsync('cmd.exe', ['/d', '/s', '/c', compileCommand], {
+        await execFileAsync('cmd.exe', ['/d', '/c', compileCommand], {
             windowsHide: true,
             cwd: path.dirname(BRIDGE_SOURCE),
             timeout: 120000,
@@ -281,6 +287,88 @@ async function runStudioLocalCommand(machine, command, config) {
     }
 }
 
+/**
+ * Send a command to a cloud-connected printer via the Bambu Studio networking DLL
+ * using cloud_send mode — the same path the official Bambu Studio app uses.
+ *
+ * This does NOT require a LAN IP. It authenticates with the cloud using the DLL's
+ * own session (same BambuStudio config dir), then sends the command via cloud MQTT.
+ *
+ * Requirements: Bambu Studio must be installed, bambu_networking.dll must exist,
+ * and the user must have logged in at least once via Bambu Studio.
+ */
+async function runStudioCloudCommand(machine, command, config) {
+    if (!machine || typeof machine !== 'object') {
+        throw new Error('A valid machine is required');
+    }
+    if (!machine.id) {
+        throw new Error('Studio cloud control requires printer id');
+    }
+
+    const executable = getStudioExecutable(config);
+    if (!executable || !fs.existsSync(executable)) {
+        throw new Error('Bambu Studio executable not found');
+    }
+
+    const pluginDll = getStudioPluginDllPath();
+    if (!fs.existsSync(pluginDll)) {
+        throw new Error(`bambu_networking.dll not found at ${pluginDll}`);
+    }
+
+    const certDir = getStudioCertDir(config);
+    if (!certDir || !fs.existsSync(certDir)) {
+        throw new Error('Bambu Studio certificate folder is missing');
+    }
+
+    const bridgeBinary = await ensureStudioBridgeBuilt();
+    const args = [
+        '--command', 'cloud_send',
+        '--plugin-dll', pluginDll,
+        '--config-dir', getStudioDataDir(),
+        '--cert-dir', certDir,
+        '--printer-id', machine.id,
+        '--payload', JSON.stringify(command),
+        '--country-code', String(config?.country_code || config?.bambu_cloud_region || 'CN'),
+    ];
+
+    try {
+        const { stdout } = await execFileAsync(bridgeBinary, args, {
+            windowsHide: true,
+            cwd: path.dirname(bridgeBinary),
+            timeout: 20000,
+        });
+        const parsed = parseBridgeOutput(stdout);
+        if (!parsed) {
+            throw new Error('Bambu Studio bridge returned no output');
+        }
+        if (!parsed.ok) {
+            throw new Error(
+                parsed.error
+                || (typeof parsed.send_ret === 'number' ? `Studio cloud send failed (send_ret=${parsed.send_ret})` : null)
+                || (typeof parsed.server_ret === 'number' && parsed.server_ret !== 0 ? `Studio cloud connect failed (server_ret=${parsed.server_ret})` : null)
+                || 'Bambu Studio cloud bridge reported an error',
+            );
+        }
+        return parsed;
+    } catch (failure) {
+        if (failure && failure.error) {
+            const parsed = parseBridgeOutput(failure.stdout);
+            if (parsed) {
+                const parts = [];
+                if (parsed.error) parts.push(parsed.error);
+                if (typeof parsed.send_ret === 'number') parts.push(`send_ret=${parsed.send_ret}`);
+                if (typeof parsed.server_ret === 'number') parts.push(`server_ret=${parsed.server_ret}`);
+                if (typeof parsed.user_login === 'boolean') parts.push(`user_login=${parsed.user_login}`);
+                throw new Error(`Bambu Studio cloud bridge failed: ${parts.join(', ')}`);
+            }
+            const stderr = failure.stderr ? String(failure.stderr).trim() : '';
+            const stdout = failure.stdout ? String(failure.stdout).trim() : '';
+            throw new Error(`Bambu Studio cloud bridge failed${stderr ? `: ${stderr}` : stdout ? `: ${stdout}` : ''}`);
+        }
+        throw failure;
+    }
+}
+
 module.exports = {
     ensureStudioBridgeBuilt,
     getBambuStudioStatus,
@@ -289,4 +377,5 @@ module.exports = {
     getBridgeBinaryPath,
     getStudioPluginDllPath,
     runStudioLocalCommand,
+    runStudioCloudCommand,
 };
