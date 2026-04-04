@@ -5,7 +5,7 @@
  */
 
 const { export3mfViaCli } = require('./handlers/repack');
-const { printerControl } = require('./handlers/printer');
+const { printerControl, executeViaFara7B } = require('./handlers/printer');
 
 /**
  * 分发命令给对应处理器。
@@ -46,6 +46,26 @@ async function handleCommand(cmd, params, push, config) {
         case 'extrude_filament':
         case 'send_gcode':
             return printerControl(cmd, params, push, config);
+
+        case 'vision_control': {
+            const task = params.task || 'home_printer';
+            const printerId = typeof params.printer_id === 'string' ? params.printer_id.trim() : '';
+            
+            push({ type: 'status', message: `Running vision control for ${task}...` });
+            
+            try {
+                const result = await executeViaFara7B(printerId, task, push, config);
+                push({
+                    type: 'done',
+                    cmd,
+                    data: result,
+                    message: `Vision control completed: ${result.description || 'success'}`
+                });
+            } catch (error) {
+                throw error;
+            }
+            return;
+        }
 
         case 'ping':
             push({ type: 'pong', ts: Date.now() });
