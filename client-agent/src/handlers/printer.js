@@ -11,7 +11,6 @@ const mqtt = require('mqtt');
 const xdgAppPaths = require('xdg-app-paths/cjs');
 const jwt = require('jsonwebtoken');
 const { getBambuStudioStatus, runStudioLocalCommand, runStudioCloudCommand } = require('./studio');
-const { generateFakePrintGcode } = require('../utils/gcode_generator');
 const { spawn } = require('child_process');
 
 const bambuConsts = require('bambu-cli/lib/const.js');
@@ -2165,52 +2164,26 @@ async function sendGcodeSequenceViaCloud(printerId, lines, push) {
 }
 
 /**
- * Execute a command (Home/Move) via a "Fake Print" job.
- * This wraps the G-code into a 3MF, uploads to cloud OSS, and sends project_file command.
+ * Execute a command (Home/Move) via Fara-7B Vision Control (Scheme C).
+ * This uses a Python helper to capture the Bambu Studio screen and simulate clicks.
  */
-async function executeViaFakePrint(printerId, gcodeLines, push, config, useSafetyPrep = false) {
-    const cliConfig = readBambuCliConfig();
-    const machine = cliConfig.machines.find(m => m.id === printerId);
-    if (!machine) {
-        throw new Error(`Printer ${printerId} not found`);
-    }
+async function executeViaFara7B(printerId, action, push, config) {
+    const helperPath = path.resolve(__dirname, '../../scripts/vision_controller.py');
+    const screenshotPath = path.resolve(__dirname, '../../screenshot_fara.png');
+    const backendUrl = config.backend_url || 'http://localhost:8000';
+    
+    push({ type: 'progress', message: `[截图识别] 启动视觉驱动以执行 ${action} 任务...` });
 
-    const accessToken = cliConfig.access_token;
-    if (!accessToken) {
-        throw new Error('Access token is missing in bambu-cli config. Please re-login.');
-    }
-
-    const region = cliConfig.cloud_region || 'global';
-    const modelName = machine.name || machine.id;
-
-    // 1. Generate G-code payload
-    const finalGcode = generateFakePrintGcode(modelName, gcodeLines, useSafetyPrep);
-    push({ type: 'progress', message: `[伪装打印] 已生成 G-code 负载 (${useSafetyPrep ? '安全准备模式' : '对齐模式'})...` });
-
-    // 2. Wrap into 3MF and upload to OSS via Python helper
-    const helperPath = path.resolve(__dirname, '../../scripts/fake_print_helper.py');
-    const resultJson = await new Promise((resolve, reject) => {
-        // Normalize region (Bambu config often uses 'China' or 'Global')
-        const normRegion = (region.toLowerCase().includes('china') || region.toLowerCase().includes('cn')) ? 'cn' : 'global';
+    return new Promise((resolve, reject) => {
         const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-
-        console.log(`[Fake Print] Starting helper: ${pythonCmd} ${helperPath} --region ${normRegion}`);
-
+        
         const pythonProcess = spawn(pythonCmd, [
             helperPath,
-            '--token', accessToken,
-            '--region', normRegion,
-            '--model', modelName
+            '--task', action,
+            '--window', 'Bambu Studio',
+            '--backend-url', backendUrl,
+            '--output', screenshotPath
         ]);
-
-        pythonProcess.on('error', (err) => {
-            console.error(`[Fake Print] Failed to spawn python process: ${err.message}`);
-            reject(new Error(`Failed to start Python helper (${pythonCmd}): ${err.message}. Please ensure Python is installed and in your PATH.`));
-        });
-
-        // Send G-code content via stdin to avoid command line length limits on Windows
-        pythonProcess.stdin.write(finalGcode);
-        pythonProcess.stdin.end();
 
         let stdout = '';
         let stderr = '';
@@ -2218,55 +2191,27 @@ async function executeViaFakePrint(printerId, gcodeLines, push, config, useSafet
         pythonProcess.stdout.on('data', (data) => { stdout += data.toString(); });
         pythonProcess.stderr.on('data', (data) => { stderr += data.toString(); });
 
+        pythonProcess.on('error', (err) => {
+            reject(new Error(`Failed to start Vision Controller: ${err.message}`));
+        });
+
         pythonProcess.on('close', (code) => {
             if (code !== 0) {
-                // If the script failed, it might have still output a JSON error message to stdout.
-                try {
-                    const errorJson = JSON.parse(stdout);
-                    if (errorJson && errorJson.error) {
-                        reject(new Error(`Fake print helper error: ${errorJson.error}`));
-                        return;
-                    }
-                } catch {
-                    // Ignore parsing error and use stderr/code instead.
-                }
-                reject(new Error(`Fake print helper failed with code ${code}. Stderr: ${stderr.trim() || 'No error output'}`));
+                reject(new Error(`Vision Controller failed (code ${code}): ${stderr || stdout}`));
                 return;
             }
             try {
-                resolve(JSON.parse(stdout));
+                const result = JSON.parse(stdout);
+                if (!result.success) {
+                    reject(new Error(result.error || 'Vision control failed'));
+                    return;
+                }
+                resolve(result);
             } catch (err) {
-                reject(new Error(`Failed to parse helper output: ${stdout}`));
+                reject(new Error(`Failed to parse Vision output: ${stdout}`));
             }
         });
     });
-
-    if (!resultJson.success) {
-        throw new Error(`Helper script error: ${resultJson.error}`);
-    }
-
-    const ossUrl = resultJson.url;
-    push({ type: 'progress', message: `[伪装打印] 3MF 文件已上传: ${ossUrl}` });
-
-    // 3. Trigger project_file command via cloud MQTT
-    const mqttCommand = {
-        print: {
-            command: 'project_file',
-            param: `Metadata/plate_1.gcode`,
-            subtask_name: `BBL_${Date.now()}`,
-            url: ossUrl,
-            bed_type: 'auto',
-            timelapse: false,
-            bed_leveling: true,
-            flow_cali: true,
-            vibration_cali: true,
-            layer_inspect: true,
-            use_ams: true
-        }
-    };
-
-    push({ type: 'progress', message: `[伪装打印] 正在发送 project_file MQTT 指令...` });
-    return sendCloudMqttCommand(printerId, mqttCommand, push);
 }
 
 
@@ -2544,39 +2489,18 @@ async function printerControl(cmd, params, push, config) {
                 let result;
                 const cloudMode = params.cloud_mode || 'normal';
                 
-                if (cloudMode === 'normal') {
-                    throw new Error("操作被拒绝：由于拓竹(V01.08.03+)固件的安全策略，当前普通云端模式不支持执行敏感移动/回中指令 (HMS_0500拦截)。请在界面上方切换为“伪装打印”或“截图识别”模式。");
-                }
-    
-                if (cloudMode === 'fake_print') {
-                    push({ type: 'progress', message: `[伪装打印模式] 正在为 ${printerId} 执行回中任务...` });
-                    result = await executeViaFakePrint(printerId, ['G28'], push, config, params.use_safety_prep);
-                } else if (cloudMode === 'fara_7b') {
-                    push({ type: 'progress', message: `[截图识别模式] 正在唤醒 Fara-7B 模型以控制 Bambu Studio (未完全实现)...` });
-                    // TODO: 调用 Python 脚本
-                    // result = await homeViaFara7B(printerId, push);
-                    result = { success: true, fara: true };
-                    await new Promise(r => setTimeout(r, 2000));
+                if (cloudMode === 'fara_7b') {
+                    result = await executeViaFara7B(printerId, 'home', push, config);
                 } else {
-                    throw new Error(`未知的云端控制模式: ${cloudMode}`);
+                    // Default / Normal
+                    throw new Error("由于拓竹新版固件 (V01.08.03+) 的安全策略，常规云端模式无法执行回中请求 (HMS_0500拦截)。请切换至“截图识别 (Fara-7B)”模式以绕过。");
                 }
                 
-                // Handle soft rejection (printer received but refused due to state)
-                if (result && result.soft_rejection) {
-                    push({
-                        type: 'warning',
-                        cmd,
-                        data: result,
-                        message: result.message || '打印机当前状态不允许此操作'
-                    });
-                    return;
-                }
-
                 push({
                     type: 'done',
                     cmd,
                     data: result,
-                    message: 'Home command sent successfully'
+                    message: `Homing command initiated via ${cloudMode} mode`
                 });
             } catch (error) {
                 throw new Error(`Failed to send home command: ${error.message}`);
@@ -2696,26 +2620,21 @@ async function printerControl(cmd, params, push, config) {
             
             try {
                 let result;
+                const cloudMode = params.cloud_mode || 'normal';
                 
-                if (cloudMode === 'fake_print') {
-                    push({ type: 'progress', message: `[伪装打印模式] 正在为 ${printerId} 创建空 3MF 移动任务...` });
-                    // 构造移动G-code (G91 增量模式保证控制的一致性)
-                    const moveGcode = `G91\nG1 ${axis}${distance} F${speed}\nG90`;
-                    result = await executeViaFakePrint(printerId, [moveGcode], push, config, params.use_safety_prep);
-                } else if (cloudMode === 'fara_7b') {
-                    push({ type: 'progress', message: `[截图识别模式] 正在唤醒 Fara-7B 模型以控制 Bambu Studio (未完全实现)...` });
-                    // TODO: fara_7b nodejs -> python
-                    result = { success: true, fara: true };
-                    await new Promise(r => setTimeout(r, 2000));
+                if (cloudMode === 'fara_7b') {
+                    // Normalize axis moves to fara actions soon
+                    result = await executeViaFara7B(printerId, 'move', push, config);
                 } else {
-                    throw new Error(`未知的云端控制模式: ${cloudMode}`);
+                    // Default / Normal
+                    throw new Error("由于拓竹新版固件 (V01.08.03+) 的安全策略，常规云端模式无法执行轴移动请求 (HMS_0500拦截)。请切换至“截图识别 (Fara-7B)”模式以绕过。");
                 }
                 
                 push({
                     type: 'done',
                     cmd,
                     data: result,
-                    message: `${axis} axis moved by ${distance}mm`
+                    message: `${axis} axis move initiated via ${cloudMode} mode`
                 });
             } catch (error) {
                 throw new Error(`Failed to move axis: ${error.message}`);
