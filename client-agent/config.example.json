@@ -9,5 +9,17 @@
     "serial": "01S00C123456789",
     "access_code": "12345678"
   },
-  "log_level": "info"
+  "log_level": "info",
+  "vision_providers": {
+    "bambu_studio": {
+      "window_title": "Bambu Studio",
+      "capture_mode": "full",
+      "model": "bytedance/ui-tars-1.5-7b"
+    },
+    "orca_slicer": {
+      "window_title": "OrcaSlicer",
+      "capture_mode": "full",
+      "model": "bytedance/ui-tars-1.5-7b"
+    }
+  }
 }
