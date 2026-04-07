@@ -7,6 +7,9 @@
 /backup/
 /切片软件源码/
 
+# Auto-generated provider config (contains API keys)
+/providers.json
+
 # Temporary local files used during preset/debug work
 /tmp_bundle.txt
 /tmp_process.txt

@@ -12,6 +12,7 @@ const xdgAppPaths = require('xdg-app-paths/cjs');
 const jwt = require('jsonwebtoken');
 const { getBambuStudioStatus, runStudioLocalCommand, runStudioCloudCommand } = require('./studio');
 const { spawn } = require('child_process');
+const { runLegacyVisionControl } = require('./desktopVision');
 
 const bambuConsts = require('bambu-cli/lib/const.js');
 const bambuUtils = require('bambu-cli/lib/utils.js');
@@ -1337,7 +1338,6 @@ function fetchCloudMqttStatus(machine, cliConfig) {
         client.on('error', finish);
 
         client.on('connect', () => {
-            state.mqtt = true;
             client.unsubscribe(`device/${machine.id}/report`, () => {});
             setTimeout(() => {
                 client.subscribe(`device/${machine.id}/report`, () => {});
@@ -1352,6 +1352,7 @@ function fetchCloudMqttStatus(machine, cliConfig) {
                 const json = JSON.parse(message.toString());
                 bambuUtils.mqttMessage(json, state);
                 enrichParsedPrintState(json.print, state);
+                state.mqtt = true;
 
                 if (json.info) {
                     topics.info += 1;
@@ -1477,7 +1478,7 @@ function mergeTelemetryState(baseState, fallbackState) {
         }
     }
 
-    next.mqtt = Boolean(baseState.mqtt);
+    next.mqtt = Boolean(baseState.mqtt || fallbackState.mqtt);
     return next;
 }
 
@@ -1685,6 +1686,7 @@ async function collectPrinterStatuses(config, push) {
         if (machine.cloud_online && cliConfig.access_token && cliConfig.mqtt_user) {
             const cloudMqttState = await fetchCloudMqttStatus(machine, cliConfig);
             mqttState = mergeTelemetryState(mqttState, cloudMqttState);
+            machine.cloud_online = Boolean(cloudMqttState.mqtt);
         }
         
         statuses.push(normalizeStatus(machine, mqttState, ftpAlive, preferredId, config));
@@ -2168,50 +2170,11 @@ async function sendGcodeSequenceViaCloud(printerId, lines, push) {
  * This uses a Python helper to capture the Bambu Studio screen and simulate clicks.
  */
 async function executeViaFara7B(printerId, action, push, config) {
-    const helperPath = path.resolve(__dirname, '../../scripts/vision_controller.py');
-    const screenshotPath = path.resolve(__dirname, '../../screenshot_fara.png');
-    const backendUrl = config.backend_url || 'http://localhost:8000';
-    
-    push({ type: 'progress', message: `[截图识别] 启动视觉驱动以执行 ${action} 任务...` });
-
-    return new Promise((resolve, reject) => {
-        const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-        
-        const pythonProcess = spawn(pythonCmd, [
-            helperPath,
-            '--task', action,
-            '--window', 'Bambu Studio',
-            '--backend-url', backendUrl,
-            '--output', screenshotPath
-        ]);
-
-        let stdout = '';
-        let stderr = '';
-
-        pythonProcess.stdout.on('data', (data) => { stdout += data.toString(); });
-        pythonProcess.stderr.on('data', (data) => { stderr += data.toString(); });
-
-        pythonProcess.on('error', (err) => {
-            reject(new Error(`Failed to start Vision Controller: ${err.message}`));
-        });
-
-        pythonProcess.on('close', (code) => {
-            if (code !== 0) {
-                reject(new Error(`Vision Controller failed (code ${code}): ${stderr || stdout}`));
-                return;
-            }
-            try {
-                const result = JSON.parse(stdout);
-                if (!result.success) {
-                    reject(new Error(result.error || 'Vision control failed'));
-                    return;
-                }
-                resolve(result);
-            } catch (err) {
-                reject(new Error(`Failed to parse Vision output: ${stdout}`));
-            }
-        });
-    });
+    return runLegacyVisionControl({
+        printer_id: printerId,
+        task: action,
+        target_app: 'bambu_studio',
+    }, push, config);
 }
 
 
@@ -2489,11 +2452,11 @@ async function printerControl(cmd, params, push, config) {
                 let result;
                 const cloudMode = params.cloud_mode || 'normal';
                 
-                if (cloudMode === 'fara_7b') {
+                if (cloudMode === 'fara_7b' || cloudMode === 'desktop_vision') {
                     result = await executeViaFara7B(printerId, 'home', push, config);
                 } else {
                     // Default / Normal
-                    throw new Error("由于拓竹新版固件 (V01.08.03+) 的安全策略，常规云端模式无法执行回中请求 (HMS_0500拦截)。请切换至“截图识别 (Fara-7B)”模式以绕过。");
+                    throw new Error("由于拓竹新版固件 (V01.08.03+) 的安全策略，常规云端模式无法执行回中请求 (HMS_0500拦截)。请切换至“Desktop Vision”模式以绕过。");
                 }
                 
                 push({
@@ -2622,12 +2585,11 @@ async function printerControl(cmd, params, push, config) {
                 let result;
                 const cloudMode = params.cloud_mode || 'normal';
                 
-                if (cloudMode === 'fara_7b') {
-                    // Normalize axis moves to fara actions soon
-                    result = await executeViaFara7B(printerId, 'move', push, config);
+                if (cloudMode === 'fara_7b' || cloudMode === 'desktop_vision') {
+                    throw new Error("Desktop Vision 首阶段当前只支持回中 (home_printer)，暂未开放轴移动。");
                 } else {
                     // Default / Normal
-                    throw new Error("由于拓竹新版固件 (V01.08.03+) 的安全策略，常规云端模式无法执行轴移动请求 (HMS_0500拦截)。请切换至“截图识别 (Fara-7B)”模式以绕过。");
+                    throw new Error("由于拓竹新版固件 (V01.08.03+) 的安全策略，常规云端模式无法执行轴移动请求 (HMS_0500拦截)。请切换至“Desktop Vision”模式以绕过。");
                 }
                 
                 push({
@@ -2922,6 +2884,7 @@ async function printerControl(cmd, params, push, config) {
 
 module.exports = {
     printerControl,
+    executeViaFara7B,
     listConfiguredPrinters,
     collectPrinterStatuses,
     // Export for testing

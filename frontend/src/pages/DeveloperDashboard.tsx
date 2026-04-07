@@ -12,6 +12,7 @@ import { DeveloperAuthPanel } from '../features/developer/components/DeveloperAu
 import { DeveloperFeedbackPanel } from '../features/developer/components/DeveloperFeedbackPanel';
 import { DeveloperMetricCard } from '../features/developer/components/DeveloperMetricCard';
 import { DeveloperSessionPanel } from '../features/developer/components/DeveloperSessionPanel';
+import { DeveloperModelConfigPanel } from '../features/developer/components/DeveloperModelConfigPanel';
 import { useI18n } from '../i18n/I18nProvider';
 
 export const DeveloperDashboard: React.FC = () => {
@@ -192,94 +193,100 @@ export const DeveloperDashboard: React.FC = () => {
     }
 
     return (
-        <div className="space-y-8">
-            <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                    <div className="mb-2 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
-                        <span>Infrastructure</span>
-                        <span>&gt;</span>
-                        <span>Diagnostics</span>
-                        <span>&gt;</span>
-                        <span className="font-semibold text-[var(--color-primary)]">Report Center</span>
+        <div className="h-full flex flex-col">
+            <div className="flex-shrink-0 px-6 py-4 border-b border-[rgba(191,202,186,0.35)] bg-[var(--color-surface)]">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <div className="mb-2 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
+                            <span>Infrastructure</span>
+                            <span>&gt;</span>
+                            <span>Diagnostics</span>
+                            <span>&gt;</span>
+                            <span className="font-semibold text-[var(--color-primary)]">Report Center</span>
+                        </div>
+                        <h1 className="font-heading text-2xl font-extrabold tracking-tighter text-slate-950">
+                            {t('developer.title')}
+                        </h1>
+                        <p className="mt-1 max-w-3xl text-sm text-[var(--color-text-muted)]">{t('developer.subtitle')}</p>
                     </div>
-                    <h1 className="font-heading text-3xl font-extrabold tracking-tighter text-slate-950">
-                        {t('developer.title')}
-                    </h1>
-                    <p className="mt-2 max-w-3xl text-sm text-[var(--color-text-muted)]">{t('developer.subtitle')}</p>
-                </div>
 
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="rounded bg-[var(--color-surface-container-low)] px-3 py-2 text-xs text-[var(--color-text-muted)]">
-                        Signed in as <span className="font-semibold text-slate-900">{session.email}</span>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="rounded bg-[var(--color-surface-container-low)] px-3 py-2 text-xs text-[var(--color-text-muted)]">
+                            Signed in as <span className="font-semibold text-slate-900">{session.email}</span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => window.location.reload()}
+                            className="inline-flex items-center gap-2 rounded bg-[var(--color-surface-container-lowest)] px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm border border-[var(--color-outline-variant)] transition-all hover:bg-[var(--color-surface-container-low)] active:scale-95"
+                        >
+                            <RefreshCw size={15} />
+                            {t('developer.refresh')}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void handleLogout()}
+                            className="inline-flex items-center gap-2 rounded bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[var(--color-primary-container)] active:scale-95"
+                        >
+                            {t('developer.logout')}
+                        </button>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => window.location.reload()}
-                        className="inline-flex items-center gap-2 rounded bg-[var(--color-surface-container-lowest)] px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm border border-[var(--color-outline-variant)] transition-all hover:bg-[var(--color-surface-container-low)] active:scale-95"
-                    >
-                        <RefreshCw size={15} />
-                        {t('developer.refresh')}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => void handleLogout()}
-                        className="inline-flex items-center gap-2 rounded bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[var(--color-primary-container)] active:scale-95"
-                    >
-                        {t('developer.logout')}
-                    </button>
                 </div>
-            </section>
+            </div>
 
-            {error ? (
-                <div className="flex items-start gap-3 rounded bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-100">
+            {error && (
+                <div className="flex-shrink-0 mx-6 mt-4 flex items-start gap-3 rounded bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-100">
                     <AlertTriangle size={18} className="mt-0.5 shrink-0" />
                     <span>{error}</span>
                 </div>
-            ) : null}
+            )}
 
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-                <DeveloperMetricCard
-                    label="Total Users"
-                    value={overview?.users ?? 0}
-                    icon={Users}
-                    tone="tertiary"
-                    supportingText={`${sessions.length} tracked sessions`}
-                />
-                <DeveloperMetricCard
-                    label="Active Sessions"
-                    value={overview?.chat_sessions ?? 0}
-                    icon={MessageSquareMore}
-                    tone="secondary"
-                    supportingText={sessionPeak}
-                />
-                <DeveloperMetricCard
-                    label="Total Feedback"
-                    value={overview?.feedback ?? 0}
-                    icon={BellDot}
-                    tone="primary"
-                    supportingText={`${feedbackRate} positive rate`}
-                />
-                <DeveloperMetricCard
-                    label="Negative Feedback"
-                    value={overview?.negative_feedback ?? 0}
-                    icon={AlertTriangle}
-                    tone="danger"
-                    supportingText={negativeRate}
-                />
-            </div>
-
-            <div className="grid gap-8 lg:grid-cols-3">
-                <div className="lg:col-span-2">
-                    <DeveloperFeedbackPanel
-                        loading={loading}
-                        feedback={feedback}
-                        ratingFilter={ratingFilter}
-                        onFilterChange={setRatingFilter}
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-4 space-y-6">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <DeveloperMetricCard
+                        label="Total Users"
+                        value={overview?.users ?? 0}
+                        icon={Users}
+                        tone="tertiary"
+                        supportingText={`${sessions.length} tracked sessions`}
+                    />
+                    <DeveloperMetricCard
+                        label="Active Sessions"
+                        value={overview?.chat_sessions ?? 0}
+                        icon={MessageSquareMore}
+                        tone="secondary"
+                        supportingText={sessionPeak}
+                    />
+                    <DeveloperMetricCard
+                        label="Total Feedback"
+                        value={overview?.feedback ?? 0}
+                        icon={BellDot}
+                        tone="primary"
+                        supportingText={`${feedbackRate} positive rate`}
+                    />
+                    <DeveloperMetricCard
+                        label="Negative Feedback"
+                        value={overview?.negative_feedback ?? 0}
+                        icon={AlertTriangle}
+                        tone="danger"
+                        supportingText={negativeRate}
                     />
                 </div>
-                <div>
-                    <DeveloperSessionPanel loading={loading} sessions={sessions} positiveRate={feedbackRate} />
+
+                <div className="grid gap-6 lg:grid-cols-3">
+                    <div className="lg:col-span-2">
+                        <DeveloperFeedbackPanel
+                            loading={loading}
+                            feedback={feedback}
+                            ratingFilter={ratingFilter}
+                            onFilterChange={setRatingFilter}
+                        />
+                    </div>
+                    <div>
+                        <DeveloperSessionPanel loading={loading} sessions={sessions} positiveRate={feedbackRate} />
+                    </div>
                 </div>
+
+                <DeveloperModelConfigPanel isAuthenticated={!!session} />
             </div>
         </div>
     );

@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import { useClientAgent } from './useClientAgent';
-import type { AgentMessage } from './types';
 
 interface VisionControlResult {
   success: boolean;
@@ -40,8 +39,9 @@ export function useVisionControl() {
 
     setIsRunning(true);
     try {
-      const result = await sendCommand('vision_control', {
+      const result = await sendCommand('desktop_vision_run', {
         task,
+        target_app: 'bambu_studio',
         window_title: windowTitle,
       });
       setLastResult(result);

@@ -11,9 +11,12 @@ class PresetData(BaseModel):
     process: Dict[str, Any] = Field(default_factory=dict, description="Process/quality preset parameters")
 
 class ApiSettings(BaseModel):
-    api_key: str = Field(..., description="User provided API Key")
-    base_url: str = Field(..., description="User provided Base URL")
-    model_name: str = Field(..., description="User provided Model Name")
+    provider_id: Optional[str] = Field(None, description="Provider ID for official models")
+    model_name: Optional[str] = Field(None, description="Model Name")
+    is_custom: bool = Field(False, description="Whether using custom provider")
+    custom_api_key: Optional[str] = Field(None, description="Custom provider API Key")
+    custom_base_url: Optional[str] = Field(None, description="Custom provider Base URL")
+    custom_provider_name: Optional[str] = Field(None, description="Custom provider name")
 
 class DiagnosisRequest(BaseModel):
     detections: List[Detection] = Field(default_factory=list, description="List of defects detected by the vision model")

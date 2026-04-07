@@ -1,15 +1,21 @@
 export interface ApiSettings {
-    api_key: string;
-    base_url: string;
+    provider_id: string;
     model_name: string;
+    is_custom: boolean;
+    custom_api_key: string;
+    custom_base_url: string;
+    custom_provider_name: string;
 }
 
 const STORAGE_KEY = 'fdm_ai_api_settings';
 
 export const DEFAULT_API_SETTINGS: ApiSettings = {
-    api_key: '',
-    base_url: 'https://open.bigmodel.cn/api/paas/v4/',
-    model_name: 'glm-4-flash'
+    provider_id: 'zhipu',
+    model_name: 'glm-4.7',
+    is_custom: false,
+    custom_api_key: '',
+    custom_base_url: '',
+    custom_provider_name: ''
 };
 
 export function loadApiSettings(): ApiSettings {

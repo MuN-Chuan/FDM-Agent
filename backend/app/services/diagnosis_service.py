@@ -4,6 +4,7 @@ from openai import AsyncOpenAI, OpenAIError, RateLimitError, AuthenticationError
 from app.models.diagnosis import Detection, PresetData, Modification, DiagnosisResponse, ApiSettings
 from app.core.config import settings
 from app.services.preset_inheritance_service import preset_inheritance_service
+from app.services.providers import provider_registry
 
 class DiagnosisService:
     def __init__(self):
@@ -103,65 +104,74 @@ class DiagnosisService:
             user_prompt += f"\n【重要安全约束】:\n{safety_constraints}\n绝对不能输出违反此约束的参数建议！\n"
 
         print(f"--- STREAM DIAGNOSIS START ---")
-        print(f"Model: {api_settings.model_name if api_settings else settings.LLM_MODEL_NAME}")
+        print(f"Provider: {api_settings.provider_id if api_settings else 'zhipu'}, Model: {api_settings.model_name if api_settings else settings.LLM_MODEL_NAME}")
         print(f"Prompt Length: {len(user_prompt)} characters")
 
-        api_key = (api_settings.api_key if api_settings and api_settings.api_key.strip() 
-                  else settings.LLM_API_KEY)
-        base_url = (api_settings.base_url if api_settings and api_settings.base_url.strip() 
-                   else settings.LLM_BASE_URL)
-        model_name = (api_settings.model_name if api_settings and api_settings.model_name.strip() 
-                    else settings.LLM_MODEL_NAME)
+        if api_settings:
+            if api_settings.is_custom and api_settings.custom_api_key and api_settings.custom_base_url:
+                from app.services.providers.custom_provider import CustomOpenAICompatibleProvider
+                provider = CustomOpenAICompatibleProvider(
+                    provider_id="custom",
+                    name=api_settings.custom_provider_name or "Custom",
+                    base_url=api_settings.custom_base_url,
+                    api_key=api_settings.custom_api_key,
+                    default_model=api_settings.model_name or ""
+                )
+                model_name = api_settings.model_name or ""
+                api_key = None
+                base_url = None
+            elif api_settings.provider_id:
+                provider = provider_registry.get_provider(api_settings.provider_id)
+                if provider:
+                    model_name = api_settings.model_name or provider.default_model
+                    api_key = None
+                    base_url = None
+                else:
+                    provider = provider_registry.get_provider("zhipu")
+                    model_name = api_settings.model_name or settings.LLM_MODEL_NAME
+                    api_key = None
+                    base_url = None
+            else:
+                provider = provider_registry.get_provider("zhipu")
+                model_name = api_settings.model_name or settings.LLM_MODEL_NAME
+                api_key = None
+                base_url = None
+        else:
+            provider = provider_registry.get_provider("zhipu")
+            model_name = settings.LLM_MODEL_NAME
+            api_key = None
+            base_url = None
 
-        if base_url and not base_url.endswith('/'):
-            base_url += '/'
-
-        client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        messages = [
+            {"role": "system", "content": "你是一个 3D 打印助手，请总是以原生 JSON 格式输出响应，不要包含 Markdown 代码块。"},
+            {"role": "user", "content": user_prompt}
+        ]
 
         try:
-            stream = await client.chat.completions.create(
+            full_text = ""
+            async for chunk in provider.chat_completion(
+                messages=messages,
                 model=model_name,
-                messages=[
-                    {"role": "system", "content": "你是一个 3D 打印助手，请总是以原生 JSON 格式输出响应，不要包含 Markdown 代码块。"},
-                    {"role": "user", "content": user_prompt}
-                ],
+                api_key=api_key,
+                base_url=base_url,
                 temperature=0.3,
                 max_tokens=8192,
-                stream=True,
-                stream_options={"include_usage": True}
-            )
-            
-            full_text = ""
-            usage = None
-            async for chunk in stream:
-                # Robust usage extraction
-                curr_usage = getattr(chunk, 'usage', None)
-                if curr_usage:
-                    prompt_details = getattr(curr_usage, 'prompt_tokens_details', None)
-                    cached_tokens = getattr(prompt_details, 'cached_tokens', 0) if prompt_details else 0
-                    usage = {
-                        "prompt_tokens": getattr(curr_usage, 'prompt_tokens', 0),
-                        "completion_tokens": getattr(curr_usage, 'completion_tokens', 0),
-                        "total_tokens": getattr(curr_usage, 'total_tokens', 0),
-                        "cache_tokens": cached_tokens
-                    }
-                    print(f"[Diagnosis] Captured usage: {usage}")
-
-                if not chunk.choices: continue
-                
-                # Capture reasoning/thinking process if supported by model (e.g. DeepSeek R1)
-                reasoning = getattr(chunk.choices[0].delta, 'reasoning_content', None)
-                if reasoning:
-                    yield f"data: {json.dumps({'type': 'thought', 'content': reasoning}, ensure_ascii=False)}\n\n"
-
-                content = chunk.choices[0].delta.content
-                if content:
-                    full_text += content
-                    yield f"data: {json.dumps({'type': 'text', 'content': content}, ensure_ascii=False)}\n\n"
+                stream=True
+            ):
+                if chunk.startswith("data: "):
+                    data_str = chunk[6:]
+                    try:
+                        data = json.loads(data_str)
+                        if data.get("type") == "text":
+                            full_text += data.get("content", "")
+                        yield chunk
+                    except json.JSONDecodeError:
+                        yield chunk
+                else:
+                    yield chunk
 
             print(f"Finished receiving stream. Total characters: {len(full_text)}")
             
-            # Final cleanup and parsing
             clean_text = full_text.strip()
             
             if not clean_text:
@@ -182,14 +192,9 @@ class DiagnosisService:
                 print("Yielding final JSON result.", flush=True)
                 yield f"data: {json.dumps({'type': 'done', 'reasoning_markdown': result_json.get('reasoning_markdown', '生成推理失败。'), 'modifications': result_json.get('modifications', [])}, ensure_ascii=False)}\n\n"
             except Exception as e:
-                # If final parse fails, yield the raw text as a fallback
                 print(f"Yielding JSON parsing error: {e}", flush=True)
                 yield f"data: {json.dumps({'type': 'error', 'message': f'AI 响应解析失败: {str(e)}', 'raw': full_text}, ensure_ascii=False)}\n\n"
 
-        except (RateLimitError, AuthenticationError) as e:
-            error_type = "余额不足或超限" if isinstance(e, RateLimitError) else "认证失败"
-            print(f"Yielding API error: {error_type} - {e}", flush=True)
-            yield f"data: {json.dumps({'type': 'error', 'message': f'{error_type} - {str(e)}'}, ensure_ascii=False)}\n\n"
         except Exception as e:
             print(f"Yielding unexpected error: {e}", flush=True)
             yield f"data: {json.dumps({'type': 'error', 'message': f'发生了未预期错误: {str(e)}'}, ensure_ascii=False)}\n\n"
@@ -220,32 +225,67 @@ class DiagnosisService:
         if safety_constraints:
             user_prompt += f"\n【重要安全约束】:\n{safety_constraints}\n绝对不能输出违反此约束的参数建议！\n"
 
-        # Dynamically define client settings with robust fallback to system defaults
-        api_key = (api_settings.api_key if api_settings and api_settings.api_key.strip() 
-                  else settings.LLM_API_KEY)
-        base_url = (api_settings.base_url if api_settings and api_settings.base_url.strip() 
-                   else settings.LLM_BASE_URL)
-        model_name = (api_settings.model_name if api_settings and api_settings.model_name.strip() 
-                    else settings.LLM_MODEL_NAME)
+        if api_settings:
+            if api_settings.is_custom and api_settings.custom_api_key and api_settings.custom_base_url:
+                from app.services.providers.custom_provider import CustomOpenAICompatibleProvider
+                provider = CustomOpenAICompatibleProvider(
+                    provider_id="custom",
+                    name=api_settings.custom_provider_name or "Custom",
+                    base_url=api_settings.custom_base_url,
+                    api_key=api_settings.custom_api_key,
+                    default_model=api_settings.model_name or ""
+                )
+                model_name = api_settings.model_name or ""
+                api_key = None
+                base_url = None
+            elif api_settings.provider_id:
+                provider = provider_registry.get_provider(api_settings.provider_id)
+                if provider:
+                    model_name = api_settings.model_name or provider.default_model
+                    api_key = None
+                    base_url = None
+                else:
+                    provider = provider_registry.get_provider("zhipu")
+                    model_name = api_settings.model_name or settings.LLM_MODEL_NAME
+                    api_key = None
+                    base_url = None
+            else:
+                provider = provider_registry.get_provider("zhipu")
+                model_name = api_settings.model_name or settings.LLM_MODEL_NAME
+                api_key = None
+                base_url = None
+        else:
+            provider = provider_registry.get_provider("zhipu")
+            model_name = settings.LLM_MODEL_NAME
+            api_key = None
+            base_url = None
 
-        # Fix for ZhipuAI: Ensure trailing slash to prevent SDK from appending /v1 incorrectly
-        if base_url and not base_url.endswith('/'):
-            base_url += '/'
-
-        client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
 
         try:
-            response = await client.chat.completions.create(
+            full_text = ""
+            async for chunk in provider.chat_completion(
+                messages=messages,
                 model=model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
+                api_key=api_key,
+                base_url=base_url,
                 temperature=0.3,
-                max_tokens=8192
-            )
-            
-            result_text = response.choices[0].message.content.strip()
+                max_tokens=8192,
+                stream=False
+            ):
+                if chunk.startswith("data: "):
+                    data_str = chunk[6:]
+                    try:
+                        data = json.loads(data_str)
+                        if data.get("type") == "text":
+                            full_text += data.get("content", "")
+                    except json.JSONDecodeError:
+                        pass
+
+            result_text = full_text.strip()
             print(f"--- LLM RAW RESPONSE (Model: {model_name}) ---\n{result_text}\n--- END RESPONSE ---")
 
             if not result_text:

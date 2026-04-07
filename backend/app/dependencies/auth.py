@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import Cookie, Depends, HTTPException, status
+from fastapi import Cookie, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -27,3 +27,22 @@ def get_current_user(
             detail="Authentication required",
         )
     return current_user
+
+
+def get_current_user_or_desktop_vision_agent(
+    current_user: User | None = Depends(get_optional_current_user),
+    authorization: str | None = Header(default=None),
+) -> User | None:
+    if current_user is not None:
+        return current_user
+
+    expected_token = settings.DESKTOP_VISION_AGENT_TOKEN.strip()
+    if expected_token and authorization:
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() == "bearer" and token == expected_token:
+            return None
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Authentication required",
+    )

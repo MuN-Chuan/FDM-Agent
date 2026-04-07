@@ -168,8 +168,8 @@ class ClientAgentBridgeClass {
         return this.send('printer_light_control', { printer_id: printerId, mode });
     }
     getAmsStatus(printerId: string) { return this.send('ams_status', { printer_id: printerId }); }
-    homePrinter(printerId: string, cloudMode?: string, useSafetyPrep?: boolean) { 
-        return this.send('printer_home', { printer_id: printerId, cloud_mode: cloudMode, use_safety_prep: useSafetyPrep }); 
+    homePrinter(printerId: string, cloudMode?: string) { 
+        return this.send('printer_home', { printer_id: printerId, cloud_mode: cloudMode }); 
     }
     setBedTemperature(printerId: string, temp: number, cloudMode?: string) {
         return this.send('set_bed_temperature', { printer_id: printerId, temperature: temp, cloud_mode: cloudMode });
@@ -177,8 +177,8 @@ class ClientAgentBridgeClass {
     setNozzleTemperature(printerId: string, temp: number, cloudMode?: string) {
         return this.send('set_nozzle_temperature', { printer_id: printerId, temperature: temp, cloud_mode: cloudMode });
     }
-    moveAxis(printerId: string, axis: 'X' | 'Y' | 'Z' | 'E', distance: number, speed?: number, cloudMode?: string, useSafetyPrep?: boolean) {
-        return this.send('move_axis', { printer_id: printerId, axis, distance, speed, cloud_mode: cloudMode, use_safety_prep: useSafetyPrep });
+    moveAxis(printerId: string, axis: 'X' | 'Y' | 'Z' | 'E', distance: number, speed?: number, cloudMode?: string) {
+        return this.send('move_axis', { printer_id: printerId, axis, distance, speed, cloud_mode: cloudMode });
     }
     setPrintSpeed(printerId: string, speed: number) {
         return this.send('set_print_speed', { printer_id: printerId, speed });
@@ -191,6 +191,12 @@ class ClientAgentBridgeClass {
     }
     cameraSnapshot(printerId: string) {
         return this.send('camera_snapshot', { printer_id: printerId });
+    }
+    desktopVisionRun(task: string, params?: Record<string, unknown>) {
+        return this.send('desktop_vision_run', { task, ...params });
+    }
+    desktopVisionCancel(sessionId: string) {
+        return this.send('desktop_vision_cancel', { session_id: sessionId });
     }
     ping()        { return this.send('ping'); }
 

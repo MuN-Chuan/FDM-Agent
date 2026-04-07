@@ -13,12 +13,25 @@ class Settings(BaseSettings):
     LLM_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4/"
     LLM_MODEL_NAME: str = "glm-4.7"
 
+    OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1/"
+
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
+
+    GOOGLE_API_KEY: str = ""
+    GOOGLE_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/"
+
+    MINIMAX_API_KEY: str = ""
+    MINIMAX_BASE_URL: str = "https://api.minimax.chat/v1"
+
     DATABASE_URL: str = "sqlite:///./fdm_ai_web.db"
     AUTO_CREATE_TABLES: bool = False
     DB_POOL_SIZE: int = 3
     DB_MAX_OVERFLOW: int = 2
 
     SECRET_KEY: str = "change-me-in-production"
+    DESKTOP_VISION_AGENT_TOKEN: str = "fdm-desktop-vision-dev-token"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 14
     ACCESS_COOKIE_NAME: str = "fdm_access_token"

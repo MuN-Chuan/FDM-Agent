@@ -6,6 +6,7 @@ from app.models.chat import ChatMessage
 from app.models.diagnosis import ApiSettings
 from app.core.config import settings
 from app.services.preset_inheritance_service import preset_inheritance_service
+from app.services.providers import provider_registry
 
 
 SYSTEM_PROMPT = """你是一个专业的 FDM (熔融沉积成型) 3D 打印顾问助手。你的任务是：
@@ -29,19 +30,30 @@ SYSTEM_PROMPT = """你是一个专业的 FDM (熔融沉积成型) 3D 打印顾�
 
 
 class ChatService:
-    def _get_client(self, api_settings: Optional[ApiSettings]) -> tuple:
-        api_key = (api_settings.api_key if api_settings and api_settings.api_key.strip()
-                   else settings.LLM_API_KEY)
-        base_url = (api_settings.base_url if api_settings and api_settings.base_url.strip()
-                    else settings.LLM_BASE_URL)
-        model_name = (api_settings.model_name if api_settings and api_settings.model_name.strip()
-                      else settings.LLM_MODEL_NAME)
+    def _get_provider_and_model(self, api_settings: Optional[ApiSettings]) -> tuple:
+        supports_vision = True
+        if api_settings:
+            if api_settings.is_custom and api_settings.custom_api_key and api_settings.custom_base_url:
+                from app.services.providers.custom_provider import CustomOpenAICompatibleProvider
+                provider = CustomOpenAICompatibleProvider(
+                    provider_id="custom",
+                    name=api_settings.custom_provider_name or "Custom",
+                    base_url=api_settings.custom_base_url,
+                    api_key=api_settings.custom_api_key,
+                    default_model=api_settings.model_name or ""
+                )
+                supports_vision = False
+                return provider, api_settings.model_name or "", None, None, supports_vision
 
-        if base_url and not base_url.endswith('/'):
-            base_url += '/'
+            if api_settings.provider_id:
+                provider = provider_registry.get_provider(api_settings.provider_id)
+                if provider:
+                    supports_vision = provider.supports_vision
+                    return provider, api_settings.model_name or provider.default_model, None, None, supports_vision
 
-        client = AsyncOpenAI(api_key=api_key, base_url=base_url)
-        return client, model_name
+        provider = provider_registry.get_provider("zhipu")
+        model_name = settings.LLM_MODEL_NAME
+        return provider, model_name, None, None, supports_vision
 
     def _filter_preset(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Remove G-code and thumbnails from preset for context."""
@@ -64,7 +76,8 @@ class ChatService:
         messages: List[ChatMessage],
         image_base64: Optional[str],
         preset_data: Optional[Dict[str, Any]],
-        request_modifications: bool
+        request_modifications: bool,
+        supports_vision: bool = True
     ) -> list:
         """Build the messages payload for the LLM API."""
         # NEW: Expand presets with base profiles if they are incomplete diffs
@@ -124,7 +137,8 @@ class ChatService:
                         content_text = f"【用户附带了 3MF 预设文件上下文】\n```json\n{json.dumps(filtered_3mf, ensure_ascii=False, indent=2)}\n```\n\n{content_text}"
 
                 # If last message and there's an image, add it (Vision capabilities)
-                if is_last and image_base64:
+                # Only add image if the model supports vision
+                if is_last and image_base64 and supports_vision:
                     content = [
                         {"type": "text", "text": content_text},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
@@ -155,67 +169,23 @@ class ChatService:
         request_modifications: bool = False
     ):
         """Streaming chat that yields text chunks and optional structured modifications."""
-        client, model_name = self._get_client(api_settings)
-        api_messages = self._build_messages(messages, image_base64, preset_data, request_modifications)
+        provider, model_name, api_key, base_url, supports_vision = self._get_provider_and_model(api_settings)
+        api_messages = self._build_messages(messages, image_base64, preset_data, request_modifications, supports_vision)
 
         print(f"--- CHAT STREAM START ---")
-        print(f"Model: {model_name}, Messages: {len(api_messages)}, Image: {bool(image_base64)}")
+        print(f"Provider: {provider.provider_id}, Model: {model_name}, Messages: {len(api_messages)}, Image: {bool(image_base64)}, Vision: {supports_vision}")
 
         try:
-            stream = await client.chat.completions.create(
-                model=model_name,
+            async for chunk in provider.chat_completion(
                 messages=api_messages,
+                model=model_name,
+                api_key=api_key,
+                base_url=base_url,
                 temperature=0.7,
                 max_tokens=8192,
-                stream=True,
-                stream_options={"include_usage": True}
-            )
-
-            full_text = ""
-            usage = None
-            async for chunk in stream:
-                # Robust usage extraction
-                curr_usage = getattr(chunk, 'usage', None)
-                if curr_usage:
-                    prompt_details = getattr(curr_usage, 'prompt_tokens_details', None)
-                    cached_tokens = getattr(prompt_details, 'cached_tokens', 0) if prompt_details else 0
-                    
-                    usage = {
-                        "prompt_tokens": getattr(curr_usage, 'prompt_tokens', 0),
-                        "completion_tokens": getattr(curr_usage, 'completion_tokens', 0),
-                        "total_tokens": getattr(curr_usage, 'total_tokens', 0),
-                        "cache_tokens": cached_tokens
-                    }
-                    print(f"[Chat] Captured usage: {usage}")
-
-                if not chunk.choices:
-                    continue
-
-                # Stream reasoning content (DeepSeek R1 etc.)
-                reasoning = getattr(chunk.choices[0].delta, 'reasoning_content', None)
-                if reasoning:
-                    yield f"data: {json.dumps({'type': 'thought', 'content': reasoning}, ensure_ascii=False)}\n\n"
-
-                content = chunk.choices[0].delta.content
-                if content:
-                    full_text += content
-                    yield f"data: {json.dumps({'type': 'text', 'content': content}, ensure_ascii=False)}\n\n"
-
-            # After stream ends, extract modifications if present
-            modifications = []
-            mod_match = re.search(
-                r'```json_modifications\s*([\s\S]*?)\s*```',
-                full_text,
-                re.DOTALL
-            )
-            if mod_match:
-                try:
-                    mod_json = mod_match.group(1).strip()
-                    modifications = json.loads(mod_json)
-                except (json.JSONDecodeError, ValueError) as e:
-                    print(f"[Chat] Failed to parse json_modifications: {e}")
-
-            yield f"data: {json.dumps({'type': 'done', 'modifications': modifications, 'usage': usage}, ensure_ascii=False)}\n\n"
+                stream=True
+            ):
+                yield chunk
 
         except Exception as e:
             print(f"[Chat] Stream error: {e}")

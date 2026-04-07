@@ -6,10 +6,14 @@ const { spawn, execFile } = require('child_process');
 const VCVARS64_PATH = 'C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Auxiliary/Build/vcvars64.bat';
 const BRIDGE_SOURCE = path.resolve(__dirname, '../../native/bambu_studio_bridge.cpp');
 const BRIDGE_BINARY = path.resolve(__dirname, '../../bin/bambu_studio_bridge.exe');
+const DEFAULT_BAMBU_STUDIO_PATH = 'C:/Program Files/Bambu Studio/bambu-studio.exe';
 
 function getStudioExecutable(config) {
     const executable = typeof config?.bambu_studio_path === 'string' ? config.bambu_studio_path.trim() : '';
-    return executable || null;
+    if (executable) {
+        return executable;
+    }
+    return DEFAULT_BAMBU_STUDIO_PATH;
 }
 
 function getStudioProcessName(executablePath) {

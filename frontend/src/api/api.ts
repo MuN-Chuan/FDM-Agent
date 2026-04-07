@@ -709,6 +709,130 @@ export const api = {
             throw new Error(errorData.detail || `Failed to upload slicer agent result: ${response.statusText}`);
         }
     },
+
+    // ─── Model Configuration APIs ─────────────────────────────────
+
+    async getProviders(): Promise<Record<string, ProviderConfig>> {
+        const response = await fetch(`${BASE_URL}/api/dev/providers`, defaultFetchOptions);
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('DEV_UNAUTHORIZED');
+            }
+            throw new Error('Failed to fetch providers');
+        }
+        return response.json();
+    },
+
+    async addProvider(config: ProviderConfig): Promise<{ success: boolean }> {
+        const response = await fetch(`${BASE_URL}/api/dev/providers`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config),
+        });
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('DEV_UNAUTHORIZED');
+            }
+            throw new Error('Failed to add provider');
+        }
+        return response.json();
+    },
+
+    async updateProvider(providerId: string, config: ProviderConfig): Promise<{ success: boolean }> {
+        const response = await fetch(`${BASE_URL}/api/dev/providers/${providerId}`, {
+            ...defaultFetchOptions,
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config),
+        });
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('DEV_UNAUTHORIZED');
+            }
+            const errorData = await response.json().catch(() => ({}));
+            const errorMsg = errorData.detail || `Failed to update provider (${response.status})`;
+            throw new Error(errorMsg);
+        }
+        return response.json();
+    },
+
+    async deleteProvider(providerId: string): Promise<{ success: boolean }> {
+        const response = await fetch(`${BASE_URL}/api/dev/providers/${providerId}`, {
+            ...defaultFetchOptions,
+            method: 'DELETE',
+        });
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('DEV_UNAUTHORIZED');
+            }
+            throw new Error('Failed to delete provider');
+        }
+        return response.json();
+    },
+
+    async detectProviderModels(providerId: string): Promise<{ models: string[] }> {
+        const response = await fetch(`${BASE_URL}/api/dev/providers/${providerId}/detect`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+        });
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('DEV_UNAUTHORIZED');
+            }
+            throw new Error('Failed to detect models');
+        }
+        return response.json();
+    },
+
+    async toggleProviderForUsers(providerId: string, enabledForUsers: boolean): Promise<{ success: boolean }> {
+        const response = await fetch(`${BASE_URL}/api/dev/providers/${providerId}/toggle-users?enabled_for_users=${enabledForUsers}`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+        });
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('DEV_UNAUTHORIZED');
+            }
+            throw new Error('Failed to toggle provider for users');
+        }
+        return response.json();
+    },
+
+    async getEnabledProvidersForUsers(): Promise<Record<string, ProviderConfig>> {
+        const response = await fetch(`${BASE_URL}/api/dev/providers/enabled-for-users`, defaultFetchOptions);
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('DEV_UNAUTHORIZED');
+            }
+            throw new Error('Failed to fetch enabled providers');
+        }
+        return response.json();
+    },
+
+    async getPublicProviders(): Promise<Record<string, ProviderConfig>> {
+        const response = await fetch(`${BASE_URL}/api/dev/providers/public`, defaultFetchOptions);
+        if (!response.ok) {
+            throw new Error('Failed to fetch providers');
+        }
+        return response.json();
+    },
+
+    async toggleModelForUsers(providerId: string, modelId: string, enabledForUsers: boolean): Promise<{ success: boolean }> {
+        const response = await fetch(`${BASE_URL}/api/dev/providers/${providerId}/models/toggle`, {
+            ...defaultFetchOptions,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model_id: modelId, enabled_for_users: enabledForUsers }),
+        });
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new Error('DEV_UNAUTHORIZED');
+            }
+            throw new Error('Failed to toggle model');
+        }
+        return response.json();
+    },
 };
 
 // ─── Slicer Engine Types ─────────────────────────────────────────
@@ -740,4 +864,22 @@ export interface SlicerJobResult {
     stderr?: string;
     duration_seconds?: number;
     error?: string | null;
+}
+
+// ─── Model Configuration Types ──────────────────────────────────
+
+export interface ProviderConfig {
+    name: string;
+    base_url: string;
+    api_key: string;
+    default_model: string;
+    supports_vision: boolean;
+    enabled: boolean;
+    enabled_for_users: boolean;
+    models: ProviderModel[];
+}
+
+export interface ProviderModel {
+    id: string;
+    enabled_for_users: boolean;
 }

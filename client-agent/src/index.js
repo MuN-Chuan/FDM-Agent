@@ -95,6 +95,9 @@ wss.on('connection', async (ws, req) => {
             'set_fan_speed',
             'extrude_filament',
             'send_gcode',
+            'desktop_vision_run',
+            'desktop_vision_cancel',
+            'vision_control',
         ],
         config: {
             bambu_studio_available: fs.existsSync(config.bambu_studio_path),

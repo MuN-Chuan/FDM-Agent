@@ -11,6 +11,7 @@ import type { PrinterStatus, PrinterLogEntry } from './types';
 import { useClientAgent } from '../slicer/useClientAgent';
 import { formatLayerProgress, formatPrinterStage, formatRemainingTime, isPrinterBusy, parseProgressPercent } from './statusDisplay';
 import { HomeConfirmModal } from './HomeConfirmModal';
+import { DesktopVisionTaskPanel } from './DesktopVisionTaskPanel';
 
 interface PrinterDetailViewProps {
     printer: PrinterStatus;
@@ -30,8 +31,7 @@ export const PrinterDetailView: React.FC<PrinterDetailViewProps> = ({
     const [targetNozzleTemp, setTargetNozzleTemp] = useState('');
     const [targetBedTemp, setTargetBedTemp] = useState('');
     const [isHomeDialogOpen, setIsHomeDialogOpen] = useState(false);
-    const [cloudMode, setCloudMode] = useState<'normal' | 'fake_print' | 'fara_7b'>('normal');
-    const [useSafetyPrep, setUseSafetyPrep] = useState(false);
+    const [cloudMode, setCloudMode] = useState<'normal' | 'desktop_vision'>('normal');
     const logEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -68,12 +68,13 @@ export const PrinterDetailView: React.FC<PrinterDetailViewProps> = ({
     const extrudeUnavailable = isCommandUnavailable('extrude_filament');
     const lightUnavailable = isCommandUnavailable('printer_light_control');
     const amsUnavailable = isCommandUnavailable('ams_status');
+    const desktopVisionHomeOnly = cloudMode === 'desktop_vision';
 
     const handleMove = (axis: 'X' | 'Y' | 'Z', distance: number) => {
-        if (motionUnavailable || cloudMode === 'normal') {
+        if (motionUnavailable || cloudMode === 'normal' || desktopVisionHomeOnly) {
             return;
         }
-        bridge.moveAxis(printer.id, axis, distance, undefined, cloudMode, useSafetyPrep);
+        bridge.moveAxis(printer.id, axis, distance, undefined, cloudMode);
     };
 
     const handleOpenHomeDialog = () => {
@@ -84,7 +85,7 @@ export const PrinterDetailView: React.FC<PrinterDetailViewProps> = ({
     };
 
     const handleConfirmHome = () => {
-        bridge.homePrinter(printer.id, cloudMode, useSafetyPrep);
+        bridge.homePrinter(printer.id, cloudMode);
         setIsHomeDialogOpen(false);
     };
 
@@ -143,32 +144,19 @@ export const PrinterDetailView: React.FC<PrinterDetailViewProps> = ({
 
                 <div className="flex flex-wrap items-center justify-end gap-3 w-full lg:w-auto mt-4 lg:mt-0">
                     <div className="flex items-center gap-2 mr-2">
-                        <label className="text-xs font-bold text-[var(--color-text-muted)] uppercase">Cloud Mode:</label>
+                        <label className="text-xs font-bold text-[var(--color-text-muted)] uppercase">Control Mode:</label>
                         <select 
                             value={cloudMode}
                             onChange={(e) => setCloudMode(e.target.value as any)}
                             className="bg-[var(--color-surface-muted)] border border-[var(--shell-border)] text-xs rounded px-2 py-1 outline-none focus:ring-1 focus:ring-[var(--color-primary)] font-medium text-slate-700"
                         >
                             <option value="normal">Normal (Restricted)</option>
-                            <option value="fake_print">Fake Print Job</option>
-                            <option value="fara_7b">Fara-7B Vision</option>
+                            <option value="desktop_vision">Desktop Vision (Home Only)</option>
                         </select>
                     </div>
-                    {cloudMode === 'fake_print' && (
-                        <div className="flex items-center gap-2 mr-2 bg-slate-50 border border-slate-200 rounded px-2 py-1 shadow-sm animate-in slide-in-from-right-2 fade-in duration-300">
-                            <input 
-                                type="checkbox" 
-                                id="safety-prep-toggle"
-                                checked={useSafetyPrep}
-                                onChange={(e) => setUseSafetyPrep(e.target.checked)}
-                                className="h-3 w-3 rounded text-[var(--color-primary)] border-slate-300 focus:ring-0 cursor-pointer"
-                            />
-                            <label 
-                                htmlFor="safety-prep-toggle" 
-                                className="text-[10px] font-bold text-slate-600 uppercase tracking-tight cursor-pointer hover:text-[var(--color-primary)] transition-colors"
-                            >
-                                Safety Prep (Safe Buffer)
-                            </label>
+                    {cloudMode === 'desktop_vision' && (
+                        <div className="rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] font-medium text-sky-800">
+                            Desktop Vision 当前只开放回中操作。轴移动仍保留为后续阶段能力。
                         </div>
                     )}
                     <div className="min-w-[280px] rounded-lg border border-[var(--shell-border)] bg-[var(--color-surface-muted)] px-4 py-3">
@@ -298,32 +286,32 @@ export const PrinterDetailView: React.FC<PrinterDetailViewProps> = ({
                                         <div className="relative h-40 w-40 rounded-full bg-[var(--color-surface-muted)] shadow-inner ring-1 ring-[var(--shell-border)]">
                                             <button 
                                                 onClick={() => handleMove('Y', moveStep)}
-                                                disabled={motionUnavailable || cloudMode === 'normal'}
-                                                title={cloudMode === 'normal' ? getCommandHint('move_axis') : undefined}
+                                                disabled={motionUnavailable || cloudMode === 'normal' || desktopVisionHomeOnly}
+                                                title={desktopVisionHomeOnly ? 'Desktop Vision 当前仅支持回中' : cloudMode === 'normal' ? getCommandHint('move_axis') : undefined}
                                                 className="absolute left-1/2 top-4 -translate-x-1/2 p-2 rounded-full hover:bg-white hover:shadow-md transition-all text-slate-600 disabled:opacity-30 disabled:hover:shadow-none disabled:hover:bg-transparent"
                                             >
                                                 <ArrowUp size={24} />
                                             </button>
                                             <button 
                                                 onClick={() => handleMove('X', -moveStep)}
-                                                disabled={motionUnavailable || cloudMode === 'normal'}
-                                                title={cloudMode === 'normal' ? getCommandHint('move_axis') : undefined}
+                                                disabled={motionUnavailable || cloudMode === 'normal' || desktopVisionHomeOnly}
+                                                title={desktopVisionHomeOnly ? 'Desktop Vision 当前仅支持回中' : cloudMode === 'normal' ? getCommandHint('move_axis') : undefined}
                                                 className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-white hover:shadow-md transition-all text-slate-600 disabled:opacity-30 disabled:hover:shadow-none disabled:hover:bg-transparent"
                                             >
                                                 <ArrowLeft size={24} />
                                             </button>
                                             <button 
                                                 onClick={() => handleMove('X', moveStep)}
-                                                disabled={motionUnavailable || cloudMode === 'normal'}
-                                                title={cloudMode === 'normal' ? getCommandHint('move_axis') : undefined}
+                                                disabled={motionUnavailable || cloudMode === 'normal' || desktopVisionHomeOnly}
+                                                title={desktopVisionHomeOnly ? 'Desktop Vision 当前仅支持回中' : cloudMode === 'normal' ? getCommandHint('move_axis') : undefined}
                                                 className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-white hover:shadow-md transition-all text-slate-600 disabled:opacity-30 disabled:hover:shadow-none disabled:hover:bg-transparent"
                                             >
                                                 <ArrowRight size={24} />
                                             </button>
                                             <button 
                                                 onClick={() => handleMove('Y', -moveStep)}
-                                                disabled={motionUnavailable || cloudMode === 'normal'}
-                                                title={cloudMode === 'normal' ? getCommandHint('move_axis') : undefined}
+                                                disabled={motionUnavailable || cloudMode === 'normal' || desktopVisionHomeOnly}
+                                                title={desktopVisionHomeOnly ? 'Desktop Vision 当前仅支持回中' : cloudMode === 'normal' ? getCommandHint('move_axis') : undefined}
                                                 className="absolute left-1/2 bottom-4 -translate-x-1/2 p-2 rounded-full hover:bg-white hover:shadow-md transition-all text-slate-600 disabled:opacity-30 disabled:hover:shadow-none disabled:hover:bg-transparent"
                                             >
                                                 <ArrowDown size={24} />
@@ -341,8 +329,8 @@ export const PrinterDetailView: React.FC<PrinterDetailViewProps> = ({
                                         <div className="flex flex-col gap-4">
                                             <button 
                                                 onClick={() => handleMove('Z', moveStep)}
-                                                disabled={motionUnavailable || cloudMode === 'normal'}
-                                                title={cloudMode === 'normal' ? getCommandHint('move_axis') : undefined}
+                                                disabled={motionUnavailable || cloudMode === 'normal' || desktopVisionHomeOnly}
+                                                title={desktopVisionHomeOnly ? 'Desktop Vision 当前仅支持回中' : cloudMode === 'normal' ? getCommandHint('move_axis') : undefined}
                                                 className="flex flex-col items-center gap-1 p-3 rounded-lg bg-[var(--color-surface-muted)] text-[var(--color-text-muted)] hover:bg-white hover:shadow-md transition-all disabled:opacity-40 disabled:hover:shadow-none disabled:hover:bg-transparent"
                                             >
                                                 <ArrowUp size={20} />
@@ -350,8 +338,8 @@ export const PrinterDetailView: React.FC<PrinterDetailViewProps> = ({
                                             </button>
                                             <button 
                                                 onClick={() => handleMove('Z', -moveStep)}
-                                                disabled={motionUnavailable || cloudMode === 'normal'}
-                                                title={cloudMode === 'normal' ? getCommandHint('move_axis') : undefined}
+                                                disabled={motionUnavailable || cloudMode === 'normal' || desktopVisionHomeOnly}
+                                                title={desktopVisionHomeOnly ? 'Desktop Vision 当前仅支持回中' : cloudMode === 'normal' ? getCommandHint('move_axis') : undefined}
                                                 className="flex flex-col items-center gap-1 p-3 rounded-lg bg-[var(--color-surface-muted)] text-[var(--color-text-muted)] hover:bg-white hover:shadow-md transition-all disabled:opacity-40 disabled:hover:shadow-none disabled:hover:bg-transparent"
                                             >
                                                 <ArrowDown size={20} />
@@ -535,6 +523,10 @@ export const PrinterDetailView: React.FC<PrinterDetailViewProps> = ({
                                         >
                                             <CornerRightUp size={14} className="text-rose-500" /> {t('printer.extrude')}
                                         </button>
+                                    </div>
+
+                                    <div className="mt-5">
+                                        <DesktopVisionTaskPanel active={cloudMode === 'desktop_vision'} />
                                     </div>
                                 </div>
                             </div>
