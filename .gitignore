@@ -9,6 +9,10 @@
 
 # Auto-generated provider config (contains API keys)
 /providers.json
+/.env
+/node_modules/
+/frontend/dist-developer/
+/client-agent/tmp-*.png
 
 # Temporary local files used during preset/debug work
 /tmp_bundle.txt
