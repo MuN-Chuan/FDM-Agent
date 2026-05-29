@@ -58,12 +58,8 @@ export const DiagnosisDashboard: React.FC = () => {
                 detections: detectionsToSubmit,
                 description: payload.description,
                 safety_constraints: payload.safetyConstraints,
-                preset_data: {
-                    printer: payload.presetSelection?.printer?.data || {},
-                    filament: payload.presetSelection?.filaments.map(f => f.data) || [],
-                    process: payload.presetSelection?.process?.data || {}
-                },
-                api_settings: apiSettings
+                api_settings: apiSettings,
+                request_modifications: false,
             }, (chunk) => {
                 if (chunk.type === 'thought' && chunk.content) {
                     accumulatedThought += chunk.content;
@@ -237,6 +233,7 @@ export const DiagnosisDashboard: React.FC = () => {
 
     const showVisualization = diagnosisMode === 'detect' || diagnosisMode === 'deep';
     const showDeepResults = diagnosisMode === 'deep' || diagnosisMode === 'chat';
+    const showParameterDiff = showDeepResults && modifications.length > 0;
 
     return (
         <div className="space-y-8 pb-12 relative">
@@ -304,7 +301,7 @@ export const DiagnosisDashboard: React.FC = () => {
                     )}
 
                     {/* ─── Parameter Diff (deep mode only) ─── */}
-                    {showDeepResults && (
+                    {showParameterDiff && (
                         <section className="card-glass dark:bg-primary/40">
                             <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
                                 <span className="w-1.5 h-6 bg-cta rounded-full" />
@@ -347,7 +344,7 @@ export const DiagnosisDashboard: React.FC = () => {
                                         usage={aiUsage || undefined}
                                     />
 
-                                    {diagnosisMode === 'deep' && (
+                                    {diagnosisMode === 'deep' && modifications.length > 0 && (
                                         <div className="pt-6 border-t border-secondary/10 flex flex-col gap-3">
                                             <button 
                                                 onClick={handleDownloadPresets}

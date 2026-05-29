@@ -19,7 +19,8 @@ async def create_diagnosis(request: DiagnosisRequest):
         description=request.description,
         safety_constraints=request.safety_constraints,
         preset_data=request.preset_data,
-        api_settings=request.api_settings
+        api_settings=request.api_settings,
+        request_modifications=request.request_modifications,
     )
     return response
 
@@ -34,7 +35,8 @@ async def create_diagnosis_stream(request: DiagnosisRequest):
             description=request.description,
             safety_constraints=request.safety_constraints,
             preset_data=request.preset_data,
-            api_settings=request.api_settings
+            api_settings=request.api_settings,
+            request_modifications=request.request_modifications,
         ),
         media_type="text/event-stream"
     )

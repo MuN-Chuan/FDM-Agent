@@ -27,15 +27,9 @@ export interface AgentMessage {
 
 export interface AgentCapabilities {
     bambu_studio_available: boolean;
-    printer_host: string | null;
-    printer_count?: number;
-    printer_login_required?: boolean;
     capabilities: string[];
     version: string;
 }
-
-export type BambuAccountType = 'email' | 'phone';
-export type BambuCloudRegion = 'global' | 'cn';
 
 type MessageListener = (msg: AgentMessage) => void;
 type StatusListener = (status: AgentStatus) => void;
@@ -90,9 +84,6 @@ class ClientAgentBridgeClass {
                 if (msg.type === 'hello') {
                     this.capabilities = {
                         bambu_studio_available: (msg.config?.bambu_studio_available as boolean) ?? false,
-                        printer_host: (msg.config?.printer_host as string | null) ?? null,
-                        printer_count: (msg.config?.printer_count as number | undefined) ?? 0,
-                        printer_login_required: (msg.config?.printer_login_required as boolean | undefined) ?? false,
                         capabilities: msg.capabilities ?? [],
                         version: msg.version ?? 'unknown',
                     };
@@ -141,63 +132,6 @@ class ClientAgentBridgeClass {
         return this.export3MFViaCli(jobId, outputName);
     }
 
-    /** Start printing a file (can reference a backend job_id so Agent downloads first). */
-    printStart(printerId: string, fileName: string, jobId?: string, plate?: number) {
-        return this.send('print_start', { printer_id: printerId, file_name: fileName, job_id: jobId, plate });
-    }
-
-    printPause(printerId: string)  { return this.send('print_pause', { printer_id: printerId }); }
-    printResume(printerId: string) { return this.send('print_resume', { printer_id: printerId }); }
-    printStop(printerId: string, confirm = false)   { return this.send('print_stop', { printer_id: printerId, confirm }); }
-    discoverPrinters() { return this.send('printer_discover'); }
-    loginBambuAccount(account: string, password: string, accountType: BambuAccountType, region: BambuCloudRegion) {
-        return this.send('printer_login', { account, password, account_type: accountType, region });
-    }
-    verifyBambuLoginCode(account: string, code: string, accountType: BambuAccountType, region: BambuCloudRegion) {
-        return this.send('printer_login_verify_code', { account, code, account_type: accountType, region });
-    }
-    sendBambuLoginCode(account: string, accountType: BambuAccountType, region: BambuCloudRegion) {
-        return this.send('printer_send_login_code', { account, account_type: accountType, region });
-    }
-    setPrinterIp(printerId: string, ip: string) {
-        return this.send('printer_set_ip', { printer_id: printerId, ip });
-    }
-    getPrinterStatus() { return this.send('printer_status'); }
-    getPrinterLoginHint() { return this.send('printer_login_hint'); }
-    controlPrinterLight(printerId: string, mode: 'on' | 'off' | 'auto') {
-        return this.send('printer_light_control', { printer_id: printerId, mode });
-    }
-    getAmsStatus(printerId: string) { return this.send('ams_status', { printer_id: printerId }); }
-    homePrinter(printerId: string, cloudMode?: string) { 
-        return this.send('printer_home', { printer_id: printerId, cloud_mode: cloudMode }); 
-    }
-    setBedTemperature(printerId: string, temp: number, cloudMode?: string) {
-        return this.send('set_bed_temperature', { printer_id: printerId, temperature: temp, cloud_mode: cloudMode });
-    }
-    setNozzleTemperature(printerId: string, temp: number, cloudMode?: string) {
-        return this.send('set_nozzle_temperature', { printer_id: printerId, temperature: temp, cloud_mode: cloudMode });
-    }
-    moveAxis(printerId: string, axis: 'X' | 'Y' | 'Z' | 'E', distance: number, speed?: number, cloudMode?: string) {
-        return this.send('move_axis', { printer_id: printerId, axis, distance, speed, cloud_mode: cloudMode });
-    }
-    setPrintSpeed(printerId: string, speed: number) {
-        return this.send('set_print_speed', { printer_id: printerId, speed });
-    }
-    setFanSpeed(printerId: string, speed: number, fan: 'part' | 'aux' | 'chamber' = 'part') {
-        return this.send('set_fan_speed', { printer_id: printerId, fan, speed });
-    }
-    extrudeFilament(printerId: string, length: number, speed?: number) {
-        return this.send('extrude_filament', { printer_id: printerId, length, speed });
-    }
-    cameraSnapshot(printerId: string) {
-        return this.send('camera_snapshot', { printer_id: printerId });
-    }
-    desktopVisionRun(task: string, params?: Record<string, unknown>) {
-        return this.send('desktop_vision_run', { task, ...params });
-    }
-    desktopVisionCancel(sessionId: string) {
-        return this.send('desktop_vision_cancel', { session_id: sessionId });
-    }
     ping()        { return this.send('ping'); }
 
     // ─── Listeners ─────────────────────────────────────────────────

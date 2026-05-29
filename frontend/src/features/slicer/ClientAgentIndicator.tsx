@@ -11,7 +11,6 @@ import type { AgentStatus } from './ClientAgentBridge';
 
 interface ClientAgentIndicatorProps {
     status: AgentStatus;
-    printerHost?: string | null;
     onConnect?: () => void;
     onDisconnect?: () => void;
 }
@@ -41,7 +40,6 @@ const statusConfig: Record<AgentStatus, { label: string; color: string; icon: Re
 
 export const ClientAgentIndicator: React.FC<ClientAgentIndicatorProps> = ({
     status,
-    printerHost,
     onConnect,
     onDisconnect,
 }) => {
@@ -60,7 +58,7 @@ export const ClientAgentIndicator: React.FC<ClientAgentIndicatorProps> = ({
             onClick={handleClick}
             title={
                 status === 'connected'
-                    ? `Client Agent 已连接\n打印机: ${printerHost ?? '未配置'}\n点击断开`
+                    ? 'Client Agent 已连接\n点击断开'
                     : '点击连接本地 Client Agent (ws://localhost:7890)'
             }
             className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-all

@@ -2,10 +2,8 @@ import React from 'react';
 import {
     CircleHelp,
     CreditCard,
-    FileText,
     History,
     MessageSquareQuote,
-    Printer,
     Settings,
     SlidersHorizontal,
     Wrench,
@@ -38,7 +36,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
     const { t } = useI18n();
     const [activeTab, setActiveTab] = React.useState<SidebarTab>('tools');
     const [history, setHistory] = React.useState<ChatSessionMetadata[]>([]);
-    const settingsClickStateRef = React.useRef<{ count: number; lastClickAt: number }>({ count: 0, lastClickAt: 0 });
 
     const showSwitcher = currentPage === 'chat';
 
@@ -68,21 +65,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
         onNavigate('chat');
     };
 
-    const handleSettingsSecretClick = () => {
-        const now = Date.now();
-        const withinRapidWindow = now - settingsClickStateRef.current.lastClickAt < 800;
-
-        settingsClickStateRef.current = {
-            count: withinRapidWindow ? settingsClickStateRef.current.count + 1 : 1,
-            lastClickAt: now,
-        };
-
-        if (settingsClickStateRef.current.count >= 10) {
-            settingsClickStateRef.current = { count: 0, lastClickAt: 0 };
-            onNavigate('developer');
-        }
-    };
-
     const navItems: SidebarNavItem[] = [
         {
             icon: MessageSquareQuote,
@@ -98,24 +80,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
             labelKey: 'sidebar.presets',
             isActive: false,
             isDisabled: true,
-        },
-        {
-            icon: Printer,
-            labelKey: 'sidebar.printerControl',
-            page: 'printer',
-            isActive: currentPage === 'printer',
-            onClick: () => {
-                onNavigate('printer');
-            },
-        },
-        {
-            icon: FileText,
-            labelKey: 'sidebar.reports',
-            page: 'developer',
-            isActive: currentPage === 'developer',
-            onClick: () => {
-                onNavigate('developer');
-            },
         },
         {
             icon: CreditCard,
@@ -249,7 +213,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
                 </button>
                 <button
                     type="button"
-                    onClick={handleSettingsSecretClick}
                     className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm text-slate-500 transition-colors hover:bg-slate-200/70 hover:text-slate-700"
                 >
                     <Settings size={18} />

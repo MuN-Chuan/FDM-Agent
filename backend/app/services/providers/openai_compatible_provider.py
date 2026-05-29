@@ -65,15 +65,19 @@ class OpenAICompatibleProvider(BaseModelProvider, ABC):
         client = self.get_client(api_key, base_url)
 
         try:
-            stream_response = await client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                stream=stream,
-                stream_options={"include_usage": True} if stream else None,
-                **kwargs
-            )
+            create_kwargs: dict = {
+                "model": model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+                "stream": stream,
+                **kwargs,
+            }
+            # stream_options 只在流式模式下传递，非流式时不传（传 null 会导致 OpenRouter 400）
+            if stream:
+                create_kwargs["stream_options"] = {"include_usage": True}
+
+            stream_response = await client.chat.completions.create(**create_kwargs)
 
             full_text = ""
             usage = None

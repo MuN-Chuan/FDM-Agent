@@ -15,7 +15,7 @@ interface TopbarProps {
 
 export const Topbar: React.FC<TopbarProps> = ({ currentUser, onOpenAuth, onLogout }) => {
     const { locale, setLocale, t } = useI18n();
-    const { agentStatus, connect, disconnect, capabilities } = useClientAgent();
+    const { agentStatus, connect, disconnect } = useClientAgent();
 
     return (
         <header className="sticky top-0 z-30 h-14 bg-[#f8f9fa]">
@@ -35,7 +35,6 @@ export const Topbar: React.FC<TopbarProps> = ({ currentUser, onOpenAuth, onLogou
                     <div className="hidden items-center gap-3 sm:flex">
                         <ClientAgentIndicator
                             status={agentStatus}
-                            printerHost={capabilities?.printer_host}
                             onConnect={connect}
                             onDisconnect={disconnect}
                         />

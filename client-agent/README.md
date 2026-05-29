@@ -7,7 +7,6 @@
 | 功能 | 工具 |
 |------|------|
 | 通过切片软件原生流程导出 3MF | Bambu Studio CLI |
-| 打印机控制（开始/暂停/停止/状态） | bambu-cli |
 | 实时进度回传到前端 | WebSocket |
 
 ## 快速启动
@@ -27,19 +26,13 @@ npm start
 {
   "port": 7890,
   "backend_url": "http://localhost:8000",
-  "bambu_studio_path": "C:/Program Files/Bambu Studio/bambu-studio.exe",
-  "bambu_cli_path": "bambu-cli",
-  "printer": {
-    "host": "192.168.1.xxx",
-    "serial": "YOUR_PRINTER_SERIAL",
-    "access_code": "YOUR_ACCESS_CODE"
-  }
+  "bambu_studio_path": "C:/Program Files/Bambu Studio/bambu-studio.exe"
 }
 ```
 
 ## 支持的命令
 
-### 1. 本地 slicer CLI 导出 3MF
+### 本地 slicer CLI 导出 3MF
 
 ```json
 {
@@ -58,16 +51,6 @@ npm start
 }
 ```
 
-### 2. 打印控制
-
-```json
-{ "cmd": "print_start", "job_id": "<server-job-id>", "file_name": "optimized.3mf" }
-{ "cmd": "print_pause" }
-{ "cmd": "print_resume" }
-{ "cmd": "print_stop" }
-{ "cmd": "printer_status" }
-```
-
 ## Agent -> 前端消息
 
 ```json
@@ -83,7 +66,7 @@ npm start
 
 ## 说明
 
-- 当前 3MF 主路径已经改为“切片软件原生导出”
+- 当前 3MF 主路径已经改为"切片软件原生导出"
 - Agent 会先探测本机 `Bambu Studio` 实际支持的 CLI 参数名，再按本机版本拼接命令
 - 旧的 ZIP 重打包不再是默认生产方案
 - 如果后续支持 OrcaSlicer，可在保持前端协议不变的前提下扩展 Agent 的执行器

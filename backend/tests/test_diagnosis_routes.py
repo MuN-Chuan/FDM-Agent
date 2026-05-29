@@ -26,12 +26,13 @@ def _payload() -> dict:
 def test_diagnose_route_returns_structured_payload(monkeypatch) -> None:
     calls: dict[str, object] = {}
 
-    async def fake_analyze(*, detections, description, safety_constraints, preset_data, api_settings):
+    async def fake_analyze(*, detections, description, safety_constraints, preset_data, api_settings, request_modifications):
         calls["detections"] = detections
         calls["description"] = description
         calls["safety_constraints"] = safety_constraints
         calls["preset_data"] = preset_data
         calls["api_settings"] = api_settings
+        calls["request_modifications"] = request_modifications
         return DiagnosisResponse(
             reasoning_markdown="### ok",
             modifications=[
@@ -57,10 +58,11 @@ def test_diagnose_route_returns_structured_payload(monkeypatch) -> None:
     assert calls["description"] == "surface has many thin strings"
     assert calls["safety_constraints"] == "do not change nozzle temperature"
     assert calls["api_settings"] is None
+    assert calls["request_modifications"] is False
 
 
 def test_diagnose_stream_route_returns_sse(monkeypatch) -> None:
-    async def fake_stream(*, detections, description, safety_constraints, preset_data, api_settings):
+    async def fake_stream(*, detections, description, safety_constraints, preset_data, api_settings, request_modifications):
         yield 'data: {"type":"text","content":"partial"}\n\n'
         yield 'data: {"type":"done","reasoning_markdown":"### stream ok","modifications":[]}\n\n'
 

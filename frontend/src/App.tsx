@@ -2,12 +2,10 @@ import { useEffect, useState } from 'react'
 import { MainLayout } from './components/layout/MainLayout'
 import { AuthModal } from './components/auth/AuthModal'
 import { AIChatPage } from './pages/AIChatPage'
-import { DeveloperDashboard } from './pages/DeveloperDashboard'
-import { PrinterControlPage } from './pages/PrinterControlPage'
 import { api, type UserProfile } from './api/api'
 import { I18nProvider } from './i18n/I18nProvider'
 
-export type AppPage = 'chat' | 'printer' | 'developer';
+export type AppPage = 'chat';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<AppPage>('chat');
@@ -51,10 +49,6 @@ function App() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'printer':
-        return <PrinterControlPage />;
-      case 'developer':
-        return <DeveloperDashboard />;
       case 'chat':
       default:
         return <AIChatPage currentSessionId={currentSessionId} onSessionChange={setCurrentSessionId} />;

@@ -373,7 +373,7 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                 },
             ];
 
-            const presetData = bundle
+            const presetData = requestModifications && bundle
                 ? {
                       printer: selection.printer?.data || {},
                       process: selection.process?.data || {},

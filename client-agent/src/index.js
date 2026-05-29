@@ -2,8 +2,7 @@
  * FDM-AI Client Agent — 主入口
  *
  * 运行在用户本机，通过 WebSocket 接受前端网页指令，
- * 调用本地 BambuStudio CLI 执行 slicer-native 3MF 导出，
- * 调用 bambu-cli 控制打印机。
+ * 调用本地 BambuStudio CLI 执行 slicer-native 3MF 导出。
  *
  * 使用方法：
  *   node src/index.js
@@ -13,8 +12,6 @@
 const { WebSocketServer } = require('ws');
 const path = require('path');
 const fs = require('fs');
-const { listConfiguredPrinters } = require('./handlers/printer');
-const { getBambuStudioStatus } = require('./handlers/studio');
 
 // ─── 加载配置 ─────────────────────────────────────────────────────
 const configPath = path.resolve(__dirname, '..', 'config.json');
@@ -57,14 +54,6 @@ wss.on('listening', () => {
 wss.on('connection', async (ws, req) => {
     const clientIp = req.socket.remoteAddress;
     log('info', `Frontend connected from ${clientIp}`);
-    const discovery = listConfiguredPrinters(config);
-    const studioStatus = await getBambuStudioStatus(config).catch(() => ({
-        installed: false,
-        running: false,
-        automation_ready: false,
-        path: config.bambu_studio_path ?? null,
-        process_name: null,
-    }));
 
     // Immediately send a hello message with agent capabilities
     send(ws, {
@@ -73,39 +62,9 @@ wss.on('connection', async (ws, req) => {
         capabilities: [
             'export_3mf_cli',
             'repack_3mf',
-            'printer_discover',
-            'printer_login',
-            'printer_login_verify_code',
-            'printer_send_login_code',
-            'printer_set_ip',
-            'printer_status',
-            'printer_login_hint',
-            'printer_light_control',
-            'camera_snapshot',
-            'print_start',
-            'print_pause',
-            'print_resume',
-            'print_stop',
-            'printer_home',
-            'ams_status',
-            'set_bed_temperature',
-            'set_nozzle_temperature',
-            'move_axis',
-            'set_print_speed',
-            'set_fan_speed',
-            'extrude_filament',
-            'send_gcode',
-            'desktop_vision_run',
-            'desktop_vision_cancel',
-            'vision_control',
         ],
         config: {
             bambu_studio_available: fs.existsSync(config.bambu_studio_path),
-            bambu_studio_running: Boolean(studioStatus.running),
-            bambu_studio_automation_ready: Boolean(studioStatus.automation_ready),
-            printer_host: discovery.machines.find((machine) => machine.selected)?.ip ?? null,
-            printer_count: discovery.machines.length,
-            printer_login_required: discovery.login_required,
         }
     });
 

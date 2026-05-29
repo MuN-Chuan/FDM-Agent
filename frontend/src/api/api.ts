@@ -1,7 +1,8 @@
 import type { ApiSettings } from './apiSettings';
+import { isDesktopApp } from '../platform/runtime';
 
 const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
-export const BASE_URL = configuredBaseUrl || '';
+export const BASE_URL = configuredBaseUrl || (isDesktopApp() ? 'http://127.0.0.1:8001' : '');
 
 const defaultFetchOptions: RequestInit = {
     credentials: 'include',
@@ -13,6 +14,7 @@ export interface DiagnosisRequest {
     safety_constraints?: string;
     preset_data?: any;
     api_settings?: ApiSettings;
+    request_modifications?: boolean;
 }
 
 // ─── 3MF Workflow Types ─────────────────────────────────────────

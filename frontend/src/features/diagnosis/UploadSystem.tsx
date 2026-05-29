@@ -1,10 +1,8 @@
 import React, { useRef, useState } from 'react';
-import {
-    ImageIcon, FileCode, ShieldCheck, Loader2,
-    Search, Zap
-} from 'lucide-react';
+import { FileCode, ImageIcon, Loader2, Search, ShieldCheck, Zap } from 'lucide-react';
+
 import { usePresetParser } from './usePresetParser';
-import { PresetSelector, LoadingSpinner, PresetErrorBanner } from './PresetSelector';
+import { LoadingSpinner, PresetErrorBanner, PresetSelector } from './PresetSelector';
 
 export type DiagnosisMode = 'detect' | 'chat' | 'deep';
 
@@ -42,25 +40,31 @@ export const UploadSystem: React.FC<UploadSystemProps> = ({
     const presetInputRef = useRef<HTMLInputElement>(null);
 
     const {
-        bundle, parseError, isParsing, selection,
-        parsePresetFile, updateSelection, validateSelection,
+        bundle,
+        parseError,
+        isParsing,
+        selection,
+        parsePresetFile,
+        updateSelection,
+        validateSelection,
     } = usePresetParser();
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0] || null;
+    const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0] || null;
         setImageFile(file);
         onImageChange?.(file);
     };
 
-    const handlePresetChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const handlePresetChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) {
+            return;
+        }
         setPresetFile(file);
         await parsePresetFile(file);
         onPresetChange?.(true);
     };
 
-    // Watch parsing state
     React.useEffect(() => {
         onParsingChange?.(isParsing);
     }, [isParsing, onParsingChange]);
@@ -73,29 +77,28 @@ export const UploadSystem: React.FC<UploadSystemProps> = ({
         presetSelection: selection,
     });
 
-    // Validation per mode
     const canDetect = !!imageFile && isModelReady && !isInferencing;
-    const canDeep = !!presetFile && !!bundle && !parseError && !!validateSelection() === false
-        && (!!imageFile || description.trim().length > 0);
+    const canDeep = !isInferencing && (!!imageFile || description.trim().length > 0);
     const presetValidationError = bundle ? validateSelection() : null;
 
     const triggerDiagnosis = (mode: DiagnosisMode) => onStartDiagnosis(mode, buildPayload());
 
     return (
         <div className="space-y-6">
-            {/* === UPLOAD ROW === */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Image Upload */}
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div
                     onClick={() => imageInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-xl p-6 transition-all text-center cursor-pointer group ${imageFile
-                        ? 'border-cta/40 bg-cta/5'
-                        : 'border-secondary/10 hover:border-cta/30 hover:bg-cta/5'
-                        }`}
+                    className={`cursor-pointer rounded-xl border-2 border-dashed p-6 text-center transition-all group ${
+                        imageFile
+                            ? 'border-cta/40 bg-cta/5'
+                            : 'border-secondary/10 hover:border-cta/30 hover:bg-cta/5'
+                    }`}
                 >
                     <input
-                        type="file" accept="image/*"
-                        className="hidden" ref={imageInputRef}
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
                         onChange={handleImageChange}
                     />
                     {imageFile ? (
@@ -103,65 +106,68 @@ export const UploadSystem: React.FC<UploadSystemProps> = ({
                             <img
                                 src={URL.createObjectURL(imageFile)}
                                 alt="Preview"
-                                className="h-20 object-contain rounded"
+                                className="h-20 rounded object-contain"
                             />
-                            <p className="text-xs font-bold text-cta truncate max-w-full px-2">{imageFile.name}</p>
+                            <p className="max-w-full truncate px-2 text-xs font-bold text-cta">
+                                {imageFile.name}
+                            </p>
                             <p className="text-[10px] text-text-light/40">点击更换</p>
                         </div>
                     ) : (
                         <>
-                            <div className="w-10 h-10 bg-secondary/5 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-secondary/5 transition-transform group-hover:scale-110">
                                 <ImageIcon size={18} className="text-text-light/40 group-hover:text-cta" />
                             </div>
-                            <p className="text-sm font-bold mb-0.5">缺陷图片</p>
+                            <p className="mb-0.5 text-sm font-bold">缺陷图片</p>
                             <p className="text-xs text-text-light/40">点击或拖拽上传</p>
                         </>
                     )}
                 </div>
 
-                {/* Preset File Upload */}
                 <div
                     onClick={() => presetInputRef.current?.click()}
-                    className={`border-2 border-dashed rounded-xl p-6 transition-all text-center cursor-pointer group ${presetFile
-                        ? 'border-cta/40 bg-cta/5'
-                        : 'border-secondary/10 hover:border-cta/30 hover:bg-cta/5'
-                        }`}
+                    className={`cursor-pointer rounded-xl border-2 border-dashed p-6 text-center transition-all group ${
+                        presetFile
+                            ? 'border-cta/40 bg-cta/5'
+                            : 'border-secondary/10 hover:border-cta/30 hover:bg-cta/5'
+                    }`}
                 >
                     <input
+                        ref={presetInputRef}
                         type="file"
                         accept=".bbscfg,.orca_printer"
-                        className="hidden" ref={presetInputRef}
+                        className="hidden"
                         onChange={handlePresetChange}
                     />
                     {isParsing ? (
                         <div className="flex flex-col items-center gap-3 py-2">
                             <Loader2 size={24} className="animate-spin text-cta" />
-                            <p className="text-sm text-text-light/50">解析中...</p>
+                            <p className="text-sm text-text-light/50">正在解析预设...</p>
                         </div>
                     ) : bundle ? (
                         <div className="flex flex-col items-center gap-2">
                             <FileCode size={28} className="text-cta" />
-                            <p className="text-xs font-bold text-cta truncate max-w-full px-2">{presetFile?.name}</p>
+                            <p className="max-w-full truncate px-2 text-xs font-bold text-cta">
+                                {presetFile?.name}
+                            </p>
                             <p className="text-[10px] text-text-light/40">
-                                {bundle.printers.length}机 · {bundle.filaments.length}材 · {bundle.processes.length}工艺 · 点击更换
+                                {bundle.printers.length} 机器 / {bundle.filaments.length} 材料 / {bundle.processes.length} 工艺
                             </p>
                         </div>
                     ) : (
                         <>
-                            <div className="w-10 h-10 bg-secondary/5 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
+                            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-secondary/5 transition-transform group-hover:scale-110">
                                 <FileCode size={18} className="text-text-light/40 group-hover:text-cta" />
                             </div>
-                            <p className="text-sm font-bold mb-0.5">打印机预设包</p>
-                            <p className="text-xs text-text-light/40">.bbscfg 或 .orca_printer</p>
+                            <p className="mb-0.5 text-sm font-bold">打印预设包</p>
+                            <p className="text-xs text-text-light/40">可选，仅在需要参数优化时使用</p>
                         </>
                     )}
                 </div>
             </div>
 
-            {/* Parse error */}
             {parseError && <PresetErrorBanner message={parseError.message} />}
 
-            {/* Preset selector */}
             {bundle && (
                 <PresetSelector
                     bundle={bundle}
@@ -170,40 +176,36 @@ export const UploadSystem: React.FC<UploadSystemProps> = ({
                 />
             )}
 
-            {/* Preset validation warning */}
-            {presetValidationError && bundle && (
-                <PresetErrorBanner message={presetValidationError} />
-            )}
+            {presetValidationError && bundle && <PresetErrorBanner message={presetValidationError} />}
 
-            {/* === TEXT INPUTS === */}
             <div className="space-y-4">
                 <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-text-light/40 block mb-2">问题补充说明</label>
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-text-light/40">
+                        问题补充说明
+                    </label>
                     <textarea
                         value={description}
-                        onChange={e => setDescription(e.target.value)}
-                        className="w-full bg-secondary/5 border border-secondary/10 rounded-lg p-4 text-sm min-h-[90px] focus:outline-none focus:ring-2 focus:ring-cta/20 focus:border-cta/40 transition-all font-body"
-                        placeholder="描述您在打印过程中遇到的具体情况..."
+                        onChange={(event) => setDescription(event.target.value)}
+                        className="min-h-[90px] w-full rounded-lg border border-secondary/10 bg-secondary/5 p-4 text-sm transition-all focus:border-cta/40 focus:outline-none focus:ring-2 focus:ring-cta/20 font-body"
+                        placeholder="描述你在打印过程中遇到的现象、出现阶段和期望结果..."
                     />
                 </div>
 
                 <div>
-                    <label className="text-xs font-bold uppercase tracking-wider text-text-light/40 block mb-2 flex items-center gap-2">
+                    <label className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-light/40">
                         <ShieldCheck size={13} className="text-cta" />
-                        参数安全限制 (AI 调参边界)
+                        安全约束
                     </label>
                     <textarea
                         value={safetyConstraints}
-                        onChange={e => setSafetyConstraints(e.target.value)}
-                        className="w-full bg-secondary/5 border border-secondary/10 rounded-lg p-4 text-sm min-h-[80px] focus:outline-none focus:ring-2 focus:ring-cta/20 focus:border-cta/40 transition-all font-body"
-                        placeholder="输入对 AI 调参的硬性要求（例如：不要修改打印温度、保持原有支撑设置...）"
+                        onChange={(event) => setSafetyConstraints(event.target.value)}
+                        className="min-h-[80px] w-full rounded-lg border border-secondary/10 bg-secondary/5 p-4 text-sm transition-all focus:border-cta/40 focus:outline-none focus:ring-2 focus:ring-cta/20 font-body"
+                        placeholder="例如：不要修改喷嘴温度、保持现有支撑策略、不超过某个速度范围。"
                     />
                 </div>
             </div>
 
-            {/* === TWO ACTION BUTTONS === */}
-            <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* 仅识别缺陷 */}
+            <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
                 <ActionButton
                     icon={<Search size={16} />}
                     label={isInferencing ? '识别中...' : '仅识别缺陷'}
@@ -214,40 +216,27 @@ export const UploadSystem: React.FC<UploadSystemProps> = ({
                     loadingLabel={!isModelReady ? '模型加载中...' : undefined}
                     tooltip={
                         !isModelReady
-                            ? '等待 AI 模型初始化...'
+                            ? '等待本地识别模型加载完成'
                             : !imageFile
-                                ? '请先上传缺陷图片'
-                                : undefined
+                              ? '请先上传缺陷图片'
+                              : undefined
                     }
                     onClick={() => triggerDiagnosis('detect')}
                 />
 
-                {/* 深度AI诊断 */}
                 <ActionButton
                     icon={<Zap size={16} />}
-                    label="深度AI诊断"
-                    sublabel="需要预设 + (图/说明)"
+                    label="深度缺陷分析"
+                    sublabel="图片或说明即可"
                     enabled={canDeep}
                     variant="primary"
-                    tooltip={
-                        !presetFile
-                            ? '请先上传预设包'
-                            : parseError
-                                ? '预设包解析失败'
-                                : presetValidationError
-                                    ? presetValidationError
-                                    : (!imageFile && !description.trim())
-                                        ? '请提供缺陷图片或问题说明（至少一项）'
-                                        : undefined
-                    }
+                    tooltip={!imageFile && !description.trim() ? '请至少提供缺陷图片或问题说明' : undefined}
                     onClick={() => triggerDiagnosis('deep')}
                 />
             </div>
         </div>
     );
 };
-
-/* ─────────────────────────── Sub-components ─────────────────────────── */
 
 interface ActionButtonProps {
     icon: React.ReactNode;
@@ -262,15 +251,23 @@ interface ActionButtonProps {
 }
 
 function ActionButton({
-    icon, label, sublabel, enabled, variant, onClick, tooltip, loading, loadingLabel,
+    icon,
+    label,
+    sublabel,
+    enabled,
+    variant,
+    onClick,
+    tooltip,
+    loading,
+    loadingLabel,
 }: ActionButtonProps) {
     const base =
-        'flex flex-col items-center justify-center gap-1.5 px-4 py-3 rounded-xl font-bold text-sm w-full transition-all relative group';
+        'group relative flex w-full flex-col items-center justify-center gap-1.5 rounded-xl px-4 py-3 text-sm font-bold transition-all';
     const primary =
-        'bg-cta text-white shadow-lg shadow-cta/20 hover:bg-cta/90 hover:shadow-cta/30 hover:scale-[1.02]';
+        'bg-cta text-white shadow-lg shadow-cta/20 hover:scale-[1.02] hover:bg-cta/90 hover:shadow-cta/30';
     const secondary =
-        'bg-secondary/10 border border-secondary/10 hover:border-cta/30 hover:bg-cta/5 hover:text-cta';
-    const disabled = 'opacity-40 cursor-not-allowed pointer-events-none';
+        'border border-secondary/10 bg-secondary/10 hover:border-cta/30 hover:bg-cta/5 hover:text-cta';
+    const disabled = 'pointer-events-none cursor-not-allowed opacity-40';
 
     return (
         <div className="relative">
@@ -280,14 +277,17 @@ function ActionButton({
             >
                 {loading ? <Loader2 size={16} className="animate-spin" /> : icon}
                 <span>{loadingLabel ?? label}</span>
-                <span className={`text-[10px] font-normal ${variant === 'primary' ? 'text-white/70' : 'text-text-light/40'}`}>
+                <span
+                    className={`text-[10px] font-normal ${
+                        variant === 'primary' ? 'text-white/70' : 'text-text-light/40'
+                    }`}
+                >
                     {sublabel}
                 </span>
             </button>
-            {/* Tooltip on disabled hover */}
             {tooltip && !enabled && (
-                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 z-50 hidden group-hover:block pointer-events-none">
-                    <div className="bg-primary border border-secondary/20 text-text-light text-xs px-3 py-2 rounded-lg whitespace-nowrap shadow-lg max-w-[200px] text-center">
+                <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 hidden -translate-x-1/2 group-hover:block">
+                    <div className="max-w-[220px] rounded-lg border border-secondary/20 bg-primary px-3 py-2 text-center text-xs text-text-light shadow-lg">
                         {tooltip}
                     </div>
                 </div>

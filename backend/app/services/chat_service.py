@@ -1,31 +1,26 @@
 import json
-import re
-from typing import List, Optional, Dict, Any
-from openai import AsyncOpenAI
+from typing import Any, Dict, List, Optional
+
+from app.core.config import settings
 from app.models.chat import ChatMessage
 from app.models.diagnosis import ApiSettings
-from app.core.config import settings
 from app.services.preset_inheritance_service import preset_inheritance_service
 from app.services.providers import provider_registry
 
 
-SYSTEM_PROMPT = """你是一个专业的 FDM (熔融沉积成型) 3D 打印顾问助手。你的任务是：
-1. 解答用户关于 3D 打印的各种问题（参数调优、缺陷排查、材料选择等）
-2. 分析用户提供的图片（如有）
-3. 参考用户上传的切片预设文件（如有）
-4. 当用户明确请求时，提供具体的切片参数修改建议
+SYSTEM_PROMPT = """
+你是一名专业的 FDM 3D 打印助手。
 
-回答要求：
-- 使用清晰的 Markdown 格式
-- 语言：中文，技术术语可附英文
-- 特别注意：对于任何下拉选择框（枚举值）类型的参数，在 `json_modifications` 的 `new` 字段中，**必须严格使用全小写的内部英文实际值**（例如：必须输出 "rear" 而绝不能是 "Rear" 或 "背后"；必须输出 "aligned" 而绝不能是 "Aligned" 或 "对齐"）。绝对不能首字母大写或使用本地化翻译。
-- 如果用户请求参数修改，需在回答末尾附加一个特殊 JSON 块，格式如下：
-```json_modifications
-[
-  {"name": "seam_position", "category": "process", "old": "aligned", "new": "rear", "range": "nearest,aligned,rear,random", "reason": "将接缝藏在背后", "risk": "low"}
-]
-```
-- 如果用户没有明确请求参数修改，不要输出 json_modifications 块
+你的职责：
+1. 分析打印缺陷图片和用户描述。
+2. 优先输出缺陷判断、成因分析、排查步骤和处理建议。
+3. 只有当用户明确要求参数优化时，才输出具体切片参数修改建议。
+
+输出要求：
+- 使用中文回答。
+- 默认不要输出 `json_modifications`。
+- 只有当用户明确要求参数修改时，才在回答末尾追加 `json_modifications` 代码块。
+- 对于枚举型参数，`json_modifications[].new` 必须使用切片软件内部英文原始值。
 """
 
 
@@ -35,12 +30,13 @@ class ChatService:
         if api_settings:
             if api_settings.is_custom and api_settings.custom_api_key and api_settings.custom_base_url:
                 from app.services.providers.custom_provider import CustomOpenAICompatibleProvider
+
                 provider = CustomOpenAICompatibleProvider(
                     provider_id="custom",
                     name=api_settings.custom_provider_name or "Custom",
                     base_url=api_settings.custom_base_url,
                     api_key=api_settings.custom_api_key,
-                    default_model=api_settings.model_name or ""
+                    default_model=api_settings.model_name or "",
                 )
                 supports_vision = False
                 return provider, api_settings.model_name or "", None, None, supports_vision
@@ -49,27 +45,84 @@ class ChatService:
                 provider = provider_registry.get_provider(api_settings.provider_id)
                 if provider:
                     supports_vision = provider.supports_vision
-                    return provider, api_settings.model_name or provider.default_model, None, None, supports_vision
+                    return (
+                        provider,
+                        api_settings.model_name or provider.default_model,
+                        None,
+                        None,
+                        supports_vision,
+                    )
 
         provider = provider_registry.get_provider("zhipu")
-        model_name = settings.LLM_MODEL_NAME
-        return provider, model_name, None, None, supports_vision
+        return provider, settings.LLM_MODEL_NAME, None, None, supports_vision
 
     def _filter_preset(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Remove G-code and thumbnails from preset for context."""
         if not isinstance(data, dict):
             return data
+
         filtered = {}
-        for k, v in data.items():
-            k_lower = k.lower()
-            if "gcode" in k_lower or "thumbnail" in k_lower:
+        for key, value in data.items():
+            key_lower = key.lower()
+            if "gcode" in key_lower or "thumbnail" in key_lower:
                 continue
-            if isinstance(v, dict):
-                filtered[k] = self._filter_preset(v)
+            if isinstance(value, dict):
+                filtered[key] = self._filter_preset(value)
             else:
-                # No longer stripping lists by length, as 3MF settings might have important lists
-                filtered[k] = v
+                filtered[key] = value
         return filtered
+
+    def _expand_preset_context(self, preset_data: Dict[str, Any]) -> Dict[str, Any]:
+        if preset_data.get("printer"):
+            preset_data["printer"] = preset_inheritance_service.get_full_preset(
+                preset_data["printer"],
+                "printer",
+            )
+        if preset_data.get("process"):
+            preset_data["process"] = preset_inheritance_service.get_full_preset(
+                preset_data["process"],
+                "process",
+            )
+        if isinstance(preset_data.get("filament"), list):
+            preset_data["filament"] = [
+                preset_inheritance_service.get_full_preset(item, "filament")
+                for item in preset_data["filament"]
+            ]
+        return preset_data
+
+    def _append_optimization_context(
+        self,
+        system_prompt: str,
+        preset_data: Optional[Dict[str, Any]],
+    ) -> str:
+        if not preset_data:
+            return system_prompt
+
+        system_prompt += "\n\n【已加载切片参数上下文】\n"
+
+        printer = preset_data.get("printer", {})
+        process = preset_data.get("process", {})
+        filaments = preset_data.get("filament", [])
+
+        if printer:
+            system_prompt += (
+                "**Printer**\n```json\n"
+                + json.dumps(self._filter_preset(printer), ensure_ascii=False, indent=2)
+                + "\n```\n\n"
+            )
+        if process:
+            system_prompt += (
+                "**Process**\n```json\n"
+                + json.dumps(self._filter_preset(process), ensure_ascii=False, indent=2)
+                + "\n```\n\n"
+            )
+        for index, filament in enumerate(filaments, start=1):
+            system_prompt += (
+                f"**Filament {index}**\n```json\n"
+                + json.dumps(self._filter_preset(filament), ensure_ascii=False, indent=2)
+                + "\n```\n\n"
+            )
+
+        return system_prompt
 
     def _build_messages(
         self,
@@ -77,86 +130,73 @@ class ChatService:
         image_base64: Optional[str],
         preset_data: Optional[Dict[str, Any]],
         request_modifications: bool,
-        supports_vision: bool = True
+        supports_vision: bool = True,
     ) -> list:
-        """Build the messages payload for the LLM API."""
-        # NEW: Expand presets with base profiles if they are incomplete diffs
-        if preset_data:
-            if "printer" in preset_data and preset_data["printer"]:
-                preset_data["printer"] = preset_inheritance_service.get_full_preset(preset_data["printer"], "printer")
-            if "process" in preset_data and preset_data["process"]:
-                preset_data["process"] = preset_inheritance_service.get_full_preset(preset_data["process"], "process")
-            if "filament" in preset_data and isinstance(preset_data["filament"], list):
-                new_filaments = []
-                for fil in preset_data["filament"]:
-                    new_filaments.append(preset_inheritance_service.get_full_preset(fil, "filament"))
-                preset_data["filament"] = new_filaments
+        optimization_context = None
+        if request_modifications and preset_data:
+            optimization_context = self._expand_preset_context(dict(preset_data))
 
         full_system_prompt = SYSTEM_PROMPT
-
-        # Inject preset context into system prompt if provided
-        if preset_data:
-            full_system_prompt += "\n\n【已加载用户预设文件上下文】\n"
-            printer = preset_data.get("printer", {})
-            process = preset_data.get("process", {})
-            filaments = preset_data.get("filament", [])
-
-            if printer:
-                filtered_printer = self._filter_preset(printer)
-                full_system_prompt += f"**机器 (Printer)**:\n```json\n{json.dumps(filtered_printer, ensure_ascii=False, indent=2)}\n```\n\n"
-            if process:
-                filtered_process = self._filter_preset(process)
-                full_system_prompt += f"**工艺 (Process)**:\n```json\n{json.dumps(filtered_process, ensure_ascii=False, indent=2)}\n```\n\n"
-            for i, fil in enumerate(filaments):
-                filtered_fil = self._filter_preset(fil)
-                full_system_prompt += f"**材料 {i+1} (Filament)**:\n```json\n{json.dumps(filtered_fil, ensure_ascii=False, indent=2)}\n```\n\n"
+        if request_modifications:
+            full_system_prompt += (
+                "\n当前任务包含明确的参数优化意图。"
+                "请在分析结论后给出可执行的 `json_modifications`。"
+            )
+            full_system_prompt = self._append_optimization_context(
+                full_system_prompt,
+                optimization_context,
+            )
+        else:
+            full_system_prompt += (
+                "\n当前任务不是参数优化任务。"
+                "请专注于缺陷识别与结果分析，不要默认输出调参建议。"
+            )
 
         api_messages = [{"role": "system", "content": full_system_prompt}]
-
-        # Sanitize history: conversation MUST start with a 'user' message for many APIs (like Zhipu)
-        # We skip any leading assistant messages (like the default welcome message)
         history_started = False
-        
-        # Build conversation history
-        for i, msg in enumerate(messages):
-            if not history_started and msg.role != "user":
+
+        for index, message in enumerate(messages):
+            if not history_started and message.role != "user":
                 continue
-            
+
             history_started = True
-            is_last = (i == len(messages) - 1)
+            is_last = index == len(messages) - 1
 
-            if msg.role == "user":
-                content_text = msg.content
-                
-                # If message has its own hidden 3MF attachment, inject it
-                if msg.slicer_result:
-                    # slicer_result is the ThreeMFParseResult dict
-                    settings = msg.slicer_result.get("full_settings", {})
-                    if settings:
-                        filtered_3mf = self._filter_preset(settings)
-                        content_text = f"【用户附带了 3MF 预设文件上下文】\n```json\n{json.dumps(filtered_3mf, ensure_ascii=False, indent=2)}\n```\n\n{content_text}"
+            if message.role == "assistant":
+                api_messages.append({"role": "assistant", "content": message.content})
+                continue
 
-                # If last message and there's an image, add it (Vision capabilities)
-                # Only add image if the model supports vision
-                if is_last and image_base64 and supports_vision:
-                    content = [
-                        {"type": "text", "text": content_text},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
-                    ]
-                else:
-                    content = content_text
+            content_text = message.content
 
-                # If user is explicitly requesting modifications
-                if is_last and request_modifications:
-                    suffix = "\n\n（请提供具体的 json_modifications 参数修改建议）"
-                    if isinstance(content, str):
-                        content += suffix
-                    elif isinstance(content, list):
-                        content[0]["text"] += suffix
+            if request_modifications and message.slicer_result:
+                settings = message.slicer_result.get("full_settings", {})
+                if settings:
+                    content_text = (
+                        "【已附加 3MF 切片参数上下文】\n```json\n"
+                        + json.dumps(self._filter_preset(settings), ensure_ascii=False, indent=2)
+                        + "\n```\n\n"
+                        + content_text
+                    )
 
-                api_messages.append({"role": "user", "content": content})
+            if is_last and image_base64 and supports_vision:
+                content: Any = [
+                    {"type": "text", "text": content_text},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
+                    },
+                ]
             else:
-                api_messages.append({"role": "assistant", "content": msg.content})
+                content = content_text
+
+            if is_last and request_modifications:
+                suffix = "\n\n请输出明确的 `json_modifications`，并确保字段完整。"
+                if isinstance(content, str):
+                    content += suffix
+                else:
+                    content[0]["text"] += suffix
+
+            api_messages.append({"role": "user", "content": content})
 
         return api_messages
 
@@ -166,14 +206,18 @@ class ChatService:
         image_base64: Optional[str],
         preset_data: Optional[Dict[str, Any]],
         api_settings: Optional[ApiSettings],
-        request_modifications: bool = False
+        request_modifications: bool = False,
     ):
-        """Streaming chat that yields text chunks and optional structured modifications."""
-        provider, model_name, api_key, base_url, supports_vision = self._get_provider_and_model(api_settings)
-        api_messages = self._build_messages(messages, image_base64, preset_data, request_modifications, supports_vision)
-
-        print(f"--- CHAT STREAM START ---")
-        print(f"Provider: {provider.provider_id}, Model: {model_name}, Messages: {len(api_messages)}, Image: {bool(image_base64)}, Vision: {supports_vision}")
+        provider, model_name, api_key, base_url, supports_vision = self._get_provider_and_model(
+            api_settings
+        )
+        api_messages = self._build_messages(
+            messages,
+            image_base64,
+            preset_data,
+            request_modifications,
+            supports_vision,
+        )
 
         try:
             async for chunk in provider.chat_completion(
@@ -183,13 +227,11 @@ class ChatService:
                 base_url=base_url,
                 temperature=0.7,
                 max_tokens=8192,
-                stream=True
+                stream=True,
             ):
                 yield chunk
-
-        except Exception as e:
-            print(f"[Chat] Stream error: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+        except Exception as error:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(error)}, ensure_ascii=False)}\n\n"
 
 
 chat_service = ChatService()

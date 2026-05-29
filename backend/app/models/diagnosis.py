@@ -24,6 +24,7 @@ class DiagnosisRequest(BaseModel):
     safety_constraints: Optional[str] = Field(None, description="User-defined safety constraints or hardware limitations")
     preset_data: PresetData = Field(default_factory=PresetData, description="Parsed preset JSON objects from frontend validation")
     api_settings: Optional[ApiSettings] = Field(None, description="Dynamic LLM provider settings from the frontend")
+    request_modifications: bool = Field(False, description="Whether the user explicitly requests parameter optimization suggestions")
 
 class Modification(BaseModel):
     name: str = Field(..., description="The internal parameter key name (e.g., 'retraction_distance')")

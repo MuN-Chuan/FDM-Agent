@@ -170,6 +170,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
                             <div className="hidden h-8 w-px bg-[rgba(112,122,108,0.25)] sm:block" />
 
+                            {false && (
                             <button
                                 type="button"
                                 onClick={onOpenDefectRecognition}
@@ -178,6 +179,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
                                 <Scan size={17} />
                                 <span>{t('chat.defectRecognition')}</span>
                             </button>
+                            )}
 
                             <button
                                 type="button"

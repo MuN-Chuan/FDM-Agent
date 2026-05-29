@@ -31,7 +31,6 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 2
 
     SECRET_KEY: str = "change-me-in-production"
-    DESKTOP_VISION_AGENT_TOKEN: str = "fdm-desktop-vision-dev-token"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 14
     ACCESS_COOKIE_NAME: str = "fdm_access_token"
