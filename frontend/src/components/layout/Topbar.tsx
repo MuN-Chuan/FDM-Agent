@@ -1,19 +1,15 @@
 import React from 'react';
-import { Bell, Languages, LayoutGrid, LogOut, Search, User } from 'lucide-react';
+import { Bell, Languages, LayoutGrid, Search } from 'lucide-react';
 
-import type { UserProfile } from '../../api/api';
 import { useI18n } from '../../i18n/I18nProvider';
 import { useClientAgent } from '../../features/slicer/useClientAgent';
 import { ClientAgentIndicator } from '../../features/slicer/ClientAgentIndicator';
 
 interface TopbarProps {
     isBorderless?: boolean;
-    currentUser: UserProfile | null;
-    onOpenAuth: () => void;
-    onLogout: () => void;
 }
 
-export const Topbar: React.FC<TopbarProps> = ({ currentUser, onOpenAuth, onLogout }) => {
+export const Topbar: React.FC<TopbarProps> = () => {
     const { locale, setLocale, t } = useI18n();
     const { agentStatus, connect, disconnect } = useClientAgent();
 
@@ -25,7 +21,7 @@ export const Topbar: React.FC<TopbarProps> = ({ currentUser, onOpenAuth, onLogou
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <input
                             type="text"
-                            placeholder="Search parameters or logs..."
+                            placeholder="Search parameters or cases..."
                             className="w-full bg-[var(--color-surface-muted)] py-2 pl-10 pr-4 text-sm text-slate-700 outline-none placeholder:text-slate-400"
                         />
                     </div>
@@ -73,35 +69,9 @@ export const Topbar: React.FC<TopbarProps> = ({ currentUser, onOpenAuth, onLogou
 
                     <div className="hidden h-8 w-px bg-slate-200 sm:block" />
 
-                    {currentUser ? (
-                        <div className="flex items-center gap-3">
-                            <div className="hidden text-right md:block">
-                                <p className="text-xs font-semibold text-slate-900">{currentUser.email}</p>
-                                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                                    {currentUser.role} · {t('topbar.points')}: {currentUser.points_balance}
-                                </p>
-                            </div>
-                            <div className="flex h-9 w-9 items-center justify-center bg-[var(--color-primary)] text-white">
-                                <User size={16} />
-                            </div>
-                            <button
-                                type="button"
-                                onClick={onLogout}
-                                className="p-2 text-slate-500 transition-colors hover:bg-rose-50 hover:text-rose-600"
-                                title={t('topbar.logout')}
-                            >
-                                <LogOut size={16} />
-                            </button>
-                        </div>
-                    ) : (
-                        <button
-                            type="button"
-                            onClick={onOpenAuth}
-                            className="bg-[var(--color-primary)] px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--color-primary-container)]"
-                        >
-                            {t('topbar.login')}
-                        </button>
-                    )}
+                    <div className="rounded bg-[var(--color-primary)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
+                        {t('topbar.localMode')}
+                    </div>
                 </div>
             </div>
         </header>

@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+    BookOpen,
     CircleHelp,
     CreditCard,
     History,
@@ -73,6 +74,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, onNavigate, curre
             isActive: currentPage === 'chat',
             onClick: () => {
                 onNavigate('chat');
+            },
+        },
+        {
+            icon: BookOpen,
+            labelKey: 'sidebar.caseLibrary',
+            page: 'cases',
+            isActive: currentPage === 'cases',
+            onClick: () => {
+                onNavigate('cases');
             },
         },
         {

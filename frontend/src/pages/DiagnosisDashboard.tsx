@@ -171,10 +171,10 @@ export const DiagnosisDashboard: React.FC = () => {
                     let newValue: any = mod.new;
                     
                     if (typeof originalValue === 'number') {
-                        newValue = parseFloat(mod.new);
+                        newValue = parseFloat(String(mod.new));
                         if (isNaN(newValue)) newValue = mod.new;
                     } else if (typeof originalValue === 'boolean') {
-                        newValue = mod.new.toLowerCase() === 'true';
+                        newValue = String(mod.new).toLowerCase() === 'true';
                     }
                     
                     if (newData[mod.name] !== newValue) {

@@ -30,6 +30,10 @@
 /*.txt
 /*.json
 /*.md
+!/README.md
+!/CONTRIBUTING.md
+!/package.json
+!/package-lock.json
 
 # Python cache and tooling
 __pycache__/

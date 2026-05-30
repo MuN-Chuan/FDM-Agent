@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
     Brain,
+    BookOpen,
     ChevronDown,
     ChevronUp,
     Download,
@@ -11,11 +12,12 @@ import {
     Sparkles,
     ThumbsDown,
     ThumbsUp,
+    TriangleAlert,
     Wrench,
     X,
 } from 'lucide-react';
 
-import type { FeedbackImageAsset, Modification, ThreeMFParseResult } from '../../api/api';
+import type { FeedbackImageAsset, MatchedCase, Modification, ParameterRecommendation, ThreeMFParseResult } from '../../api/api';
 import { ParameterDiffViewer } from '../../features/diagnosis/ParameterDiffViewer';
 import { useI18n } from '../../i18n/I18nProvider';
 import type { ChatUIMessage } from './types';
@@ -107,6 +109,109 @@ function renderAssistantContent(content: string, t: (key: string) => string) {
             </p>
         );
     });
+}
+
+function formatValue(value: unknown) {
+    if (value === null || value === undefined || value === '') {
+        return '-';
+    }
+    if (typeof value === 'object') {
+        try {
+            return JSON.stringify(value);
+        } catch {
+            return String(value);
+        }
+    }
+    return String(value);
+}
+
+function MatchedCasesPanel({ cases, t }: { cases: MatchedCase[]; t: (key: string) => string }) {
+    if (cases.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className="mt-8 border border-[#dce7dc] bg-[#f7faf7]">
+            <div className="flex items-center gap-2 border-b border-[#dce7dc] px-5 py-4 text-sm font-bold uppercase tracking-[0.16em] text-[var(--color-primary)]">
+                <BookOpen size={15} />
+                <span>{t('chat.matchedCases')}</span>
+            </div>
+            <div className="space-y-4 px-5 py-5">
+                {cases.map((item) => (
+                    <article key={item.case_id} className="border border-white bg-white px-4 py-4 shadow-sm">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-sm font-bold text-slate-900">{item.title}</h4>
+                            <span className="bg-[#edf3eb] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--color-primary)]">
+                                {item.defect_category}
+                            </span>
+                        </div>
+                        <p className="mt-2 text-sm leading-7 text-slate-700">{item.solution_summary}</p>
+                        {item.source_url ? (
+                            <a
+                                href={item.source_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-3 inline-flex text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-tertiary)] transition-colors hover:text-[var(--color-primary)]"
+                            >
+                                {t('chat.viewSource')}
+                            </a>
+                        ) : null}
+                    </article>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function ParameterRecommendationsPanel({
+    recommendations,
+    t,
+}: {
+    recommendations: ParameterRecommendation[];
+    t: (key: string) => string;
+}) {
+    if (recommendations.length === 0) {
+        return null;
+    }
+
+    return (
+        <div className="mt-8 border border-[#f1ddc8] bg-[#fff8ef]">
+            <div className="flex items-center gap-2 border-b border-[#f1ddc8] px-5 py-4 text-sm font-bold uppercase tracking-[0.16em] text-[#915f1b]">
+                <TriangleAlert size={15} />
+                <span>{t('chat.parameterRecommendations')}</span>
+            </div>
+            <div className="space-y-3 px-5 py-5">
+                {recommendations.map((item, index) => (
+                    <article key={`${item.category}-${item.name}-${index}`} className="bg-white px-4 py-4 shadow-sm">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-sm font-bold text-slate-900">{item.name}</h4>
+                            <span className="bg-[#fff1dd] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#915f1b]">
+                                {item.category}
+                            </span>
+                            <span className="bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                                {item.risk}
+                            </span>
+                        </div>
+                        <div className="mt-3 grid gap-3 text-sm text-slate-700 md:grid-cols-2">
+                            <div>
+                                <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                                    {t('chat.current')}
+                                </div>
+                                <div className="mt-1 font-medium">{formatValue(item.current)}</div>
+                            </div>
+                            <div>
+                                <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                                    {t('chat.proposed')}
+                                </div>
+                                <div className="mt-1 font-medium text-[#915f1b]">{formatValue(item.suggested)}</div>
+                            </div>
+                        </div>
+                        <p className="mt-3 text-sm leading-7 text-slate-700">{item.reason}</p>
+                    </article>
+                ))}
+            </div>
+        </div>
+    );
 }
 
 function readImageAsBase64(file: File): Promise<FeedbackImageAsset> {
@@ -285,6 +390,11 @@ function AssistantMessage({
                         {message.isStreaming && (
                             <span className="ml-1 inline-block h-4 w-1 animate-pulse bg-[var(--color-primary)] align-middle" />
                         )}
+                        <MatchedCasesPanel cases={message.matchedCases || []} t={t} />
+                        <ParameterRecommendationsPanel
+                            recommendations={message.parameterRecommendations || []}
+                            t={t}
+                        />
 
                         {!message.isStreaming && message.usage && (
                             <div className="mt-8 flex flex-wrap items-center gap-3 pt-4 text-[11px] text-slate-400">

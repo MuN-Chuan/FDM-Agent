@@ -4,8 +4,8 @@ import { useI18n } from '../../i18n/I18nProvider';
 
 export interface ParameterModification {
     name: string;
-    old: string;
-    new: string;
+    old: unknown;
+    new: unknown;
     range: string;
     reason: string;
     risk: 'low' | 'medium' | 'high';
@@ -13,6 +13,20 @@ export interface ParameterModification {
 
 interface ParameterDiffViewerProps {
     modifications?: ParameterModification[];
+}
+
+function formatParameterValue(value: unknown) {
+    if (value === null || value === undefined || value === '') {
+        return '-';
+    }
+    if (typeof value === 'object') {
+        try {
+            return JSON.stringify(value);
+        } catch {
+            return String(value);
+        }
+    }
+    return String(value);
 }
 
 export const ParameterDiffViewer: React.FC<ParameterDiffViewerProps> = ({ modifications = [] }) => {
@@ -43,10 +57,10 @@ export const ParameterDiffViewer: React.FC<ParameterDiffViewerProps> = ({ modifi
                             <td className="px-5 py-4">
                                 <p className="font-mono text-sm text-slate-800">{item.name}</p>
                             </td>
-                            <td className="px-5 py-4 text-sm text-slate-600">{item.old}</td>
+                            <td className="px-5 py-4 text-sm text-slate-600">{formatParameterValue(item.old)}</td>
                             <td className="px-5 py-4">
                                 <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-primary)]">
-                                    <span>{item.new}</span>
+                                    <span>{formatParameterValue(item.new)}</span>
                                 </div>
                             </td>
                         </tr>

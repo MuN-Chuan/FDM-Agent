@@ -8,5 +8,8 @@ declare global {
 }
 
 export function isDesktopApp(): boolean {
+    if (typeof window === 'undefined') {
+        return false;
+    }
     return Boolean(window.fdmDesktop?.isDesktopApp);
 }

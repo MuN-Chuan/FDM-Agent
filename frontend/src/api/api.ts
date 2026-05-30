@@ -65,9 +65,26 @@ export interface ChatRequest {
 export interface Modification {
     name: string;
     category: string;
-    old: string;
-    new: string;
+    old: unknown;
+    new: unknown;
     range: string;
+    reason: string;
+    risk: 'low' | 'medium' | 'high';
+}
+
+export interface MatchedCase {
+    case_id: string;
+    title: string;
+    defect_category: string;
+    solution_summary: string;
+    source_url?: string | null;
+}
+
+export interface ParameterRecommendation {
+    name: string;
+    category: string;
+    current?: unknown;
+    suggested?: unknown;
     reason: string;
     risk: 'low' | 'medium' | 'high';
 }
@@ -168,6 +185,8 @@ export interface StoredMessage {
     content: string;
     thought?: string;
     modifications?: Modification[];
+    matchedCases?: MatchedCase[];
+    parameterRecommendations?: ParameterRecommendation[];
     isStreaming?: boolean;
     imagePreviewUrl?: string;
     attachedFiles?: { name: string; size: number }[];
@@ -192,6 +211,8 @@ export interface SessionPayload extends SessionMetadata {
 export interface DiagnosisResponse {
     reasoning_markdown: string;
     modifications: Modification[];
+    matched_cases: MatchedCase[];
+    parameter_recommendations: ParameterRecommendation[];
 }
 
 type StreamChunk = {
@@ -199,6 +220,8 @@ type StreamChunk = {
     content?: string;
     reasoning_markdown?: string;
     modifications?: Modification[];
+    matched_cases?: MatchedCase[];
+    parameter_recommendations?: ParameterRecommendation[];
     message?: string;
     raw?: string;
     usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number; cache_tokens?: number };

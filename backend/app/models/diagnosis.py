@@ -29,12 +29,32 @@ class DiagnosisRequest(BaseModel):
 class Modification(BaseModel):
     name: str = Field(..., description="The internal parameter key name (e.g., 'retraction_distance')")
     category: str = Field(..., description="The category of the parameter: 'process', 'filament', or 'printer'")
-    old: str = Field(..., description="The original value from the user's preset")
-    new: str = Field(..., description="The new recommended value")
+    old: Any = Field(..., description="The original value from the user's preset")
+    new: Any = Field(..., description="The new recommended value")
     range: str = Field(default="N/A", description="The safe/recommended physical range for this parameter")
     reason: str = Field(..., description="A clear, logical explanation for why this parameter should be changed")
     risk: str = Field(..., description="Risk level of the change: 'low', 'medium', or 'high'")
 
+class MatchedCase(BaseModel):
+    case_id: str
+    title: str
+    defect_category: str
+    solution_summary: str
+    source_url: str | None = None
+
+
+class ParameterRecommendation(BaseModel):
+    name: str
+    category: str
+    current: Any = None
+    suggested: Any = None
+    reason: str
+    risk: str = "medium"
+
+
 class DiagnosisResponse(BaseModel):
     reasoning_markdown: str = Field(..., description="Detailed markdown-formatted diagnostic report explaining the AI's thought process")
     modifications: List[Modification] = Field(default_factory=list, description="List of actionable parameter adjustments")
+    detected_defects: List[Dict[str, Any]] = Field(default_factory=list)
+    matched_cases: List[MatchedCase] = Field(default_factory=list)
+    parameter_recommendations: List[ParameterRecommendation] = Field(default_factory=list)

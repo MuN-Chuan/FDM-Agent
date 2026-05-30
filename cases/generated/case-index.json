@@ -1,0 +1,136 @@
+{
+  "cases": [
+    {
+      "case_id": "case-001",
+      "slug": "first-layer-under-extrusion",
+      "title": "First layer under extrusion on PLA",
+      "defect_category": "first_layer",
+      "tags": [
+        "adhesion",
+        "flow",
+        "z-offset"
+      ],
+      "cover_image": "first-layer-under-extrusion\\cover.jpg",
+      "media": [
+        {
+          "kind": "image",
+          "path": "first-layer-under-extrusion\\cover.jpg",
+          "caption": "cover"
+        }
+      ],
+      "printer_model": "Bambu Lab A1",
+      "nozzle_diameter": "0.4",
+      "filament_brand": "Generic PLA",
+      "filament_material": "PLA",
+      "filament_color": "Gray",
+      "slicer_name": "Bambu Studio",
+      "slicer_version": "2.1",
+      "profile_source": "community",
+      "symptom_parameters": {
+        "first_layer_speed": 60,
+        "first_layer_height": 0.2
+      },
+      "solution_parameters": {
+        "first_layer_speed": 25,
+        "z_offset": -0.03
+      },
+      "root_cause_analysis": "The nozzle was slightly too high and the first layer speed was too aggressive for adhesion.",
+      "solution_summary": "Slow down the first layer and lower the nozzle offset slightly.",
+      "source_url": "https://example.com/fdm/case-001",
+      "source_platform": "forum",
+      "source_author": "printlab_user",
+      "source_question": "Why does my first layer look thin and broken even though extrusion seems normal?",
+      "source_answer": "Reduce first layer speed and adjust nozzle offset because the line is not being pressed into the bed.",
+      "license_note": "Summary written from a public troubleshooting thread with source attribution.",
+      "collected_by": "codex",
+      "review_status": "reviewed",
+      "body": "This case captures a common first-layer failure mode where the symptom looks like under-extrusion but the main cause is a high nozzle gap. It is a useful reference when users immediately want to increase flow without checking first-layer mechanics.",
+      "normalized_defect_category": "first_layer",
+      "printer_family": "bambu",
+      "materials_normalized": [
+        "pla"
+      ],
+      "parameter_delta": {
+        "first_layer_speed": {
+          "old": 60,
+          "new": 25
+        },
+        "z_offset": {
+          "old": null,
+          "new": -0.03
+        }
+      },
+      "search_text": "First layer under extrusion on PLA The nozzle was slightly too high and the first layer speed was too aggressive for adhesion. Slow down the first layer and lower the nozzle offset slightly. Why does my first layer look thin and broken even though extrusion seems normal? Reduce first layer speed and adjust nozzle offset because the line is not being pressed into the bed. This case captures a common first-layer failure mode where the symptom looks like under-extrusion but the main cause is a high nozzle gap. It is a useful reference when users immediately want to increase flow without checking first-layer mechanics."
+    },
+    {
+      "case_id": "case-002",
+      "slug": "petg-stringing-hotend-temp",
+      "title": "PETG stringing caused by excessive nozzle temperature and wet filament",
+      "defect_category": "stringing",
+      "tags": [
+        "petg",
+        "temperature",
+        "retraction",
+        "drying"
+      ],
+      "cover_image": "petg-stringing-hotend-temp\\cover.jpg",
+      "media": [
+        {
+          "kind": "image",
+          "path": "petg-stringing-hotend-temp\\cover.jpg",
+          "caption": "cover"
+        }
+      ],
+      "printer_model": "Creality K1C",
+      "nozzle_diameter": "0.4",
+      "filament_brand": "Generic PETG",
+      "filament_material": "PETG",
+      "filament_color": "Black",
+      "slicer_name": "OrcaSlicer",
+      "slicer_version": "2.2",
+      "profile_source": "manual",
+      "symptom_parameters": {
+        "nozzle_temperature": 255,
+        "retraction_length": 0.8,
+        "retraction_speed": 35
+      },
+      "solution_parameters": {
+        "nozzle_temperature": 242,
+        "retraction_length": 1.1,
+        "dry_filament": true
+      },
+      "root_cause_analysis": "The nozzle temperature was too high for the material state and the filament had absorbed moisture, which increased ooze during travel.",
+      "solution_summary": "Lower the hotend temperature, slightly increase retraction, and dry the filament before further tuning.",
+      "source_url": "https://example.com/fdm/case-002",
+      "source_platform": "reddit",
+      "source_author": "petg_troubleshooter",
+      "source_question": "My PETG keeps leaving strings across every gap. What should I change first?",
+      "source_answer": "Drop nozzle temperature, dry the spool, and only then fine-tune retraction because wet PETG will keep oozing.",
+      "license_note": "Summary written from a public troubleshooting thread with source attribution.",
+      "collected_by": "codex",
+      "review_status": "reviewed",
+      "body": "This case is useful for preventing the generic advice loop of only changing speed or flow. It highlights that stringing can be dominated by material condition and temperature before fine slicer tuning becomes effective.",
+      "normalized_defect_category": "stringing",
+      "printer_family": "creality",
+      "materials_normalized": [
+        "petg"
+      ],
+      "parameter_delta": {
+        "nozzle_temperature": {
+          "old": 255,
+          "new": 242
+        },
+        "retraction_length": {
+          "old": 0.8,
+          "new": 1.1
+        },
+        "dry_filament": {
+          "old": null,
+          "new": true
+        }
+      },
+      "search_text": "PETG stringing caused by excessive nozzle temperature and wet filament The nozzle temperature was too high for the material state and the filament had absorbed moisture, which increased ooze during travel. Lower the hotend temperature, slightly increase retraction, and dry the filament before further tuning. My PETG keeps leaving strings across every gap. What should I change first? Drop nozzle temperature, dry the spool, and only then fine-tune retraction because wet PETG will keep oozing. This case is useful for preventing the generic advice loop of only changing speed or flow. It highlights that stringing can be dominated by material condition and temperature before fine slicer tuning becomes effective."
+    }
+  ],
+  "count": 2
+}

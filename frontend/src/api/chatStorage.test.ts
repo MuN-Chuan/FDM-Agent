@@ -1,43 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { chatStorage, type ChatSessionData } from './chatStorage';
-
-
-class LocalStorageMock {
-    private store = new Map<string, string>();
-
-    clear() {
-        this.store.clear();
-    }
-
-    getItem(key: string) {
-        return this.store.has(key) ? this.store.get(key)! : null;
-    }
-
-    key(index: number) {
-        return Array.from(this.store.keys())[index] ?? null;
-    }
-
-    removeItem(key: string) {
-        this.store.delete(key);
-    }
-
-    setItem(key: string, value: string) {
-        this.store.set(key, value);
-    }
-
-    get length() {
-        return this.store.size;
-    }
-}
-
-
-const localStorageMock = new LocalStorageMock();
-
-Object.defineProperty(globalThis, 'localStorage', {
-    value: localStorageMock,
-    configurable: true,
-});
+import { api } from './api';
 
 
 function buildSession(overrides: Partial<ChatSessionData> = {}): ChatSessionData {
@@ -62,11 +26,13 @@ function buildSession(overrides: Partial<ChatSessionData> = {}): ChatSessionData
 
 describe('chatStorage', () => {
     beforeEach(() => {
-        localStorageMock.clear();
+        vi.restoreAllMocks();
     });
 
-    it('saves and loads a local session', async () => {
+    it('saves and loads a backend session', async () => {
         const session = buildSession();
+        vi.spyOn(api, 'saveChatSession').mockResolvedValue(session);
+        vi.spyOn(api, 'getChatSession').mockResolvedValue(session);
 
         await chatStorage.saveSession(session);
 
@@ -74,8 +40,10 @@ describe('chatStorage', () => {
     });
 
     it('lists sessions by newest timestamp first', async () => {
-        await chatStorage.saveSession(buildSession({ id: 'older', timestamp: 10, title: 'Old' }));
-        await chatStorage.saveSession(buildSession({ id: 'newer', timestamp: 20, title: 'New' }));
+        vi.spyOn(api, 'listChatSessions').mockResolvedValue([
+            { id: 'newer', timestamp: 20, title: 'New' },
+            { id: 'older', timestamp: 10, title: 'Old' },
+        ]);
 
         await expect(chatStorage.listSessions()).resolves.toEqual([
             { id: 'newer', title: 'New', timestamp: 20 },
@@ -83,13 +51,13 @@ describe('chatStorage', () => {
         ]);
     });
 
-    it('deletes session metadata and content together', async () => {
-        const session = buildSession({ id: 'delete-me' });
-        await chatStorage.saveSession(session);
+    it('deletes a backend session', async () => {
+        vi.spyOn(api, 'deleteChatSession').mockResolvedValue();
+        const getSessionSpy = vi.spyOn(api, 'getChatSession').mockRejectedValue(new Error('not found'));
 
-        await chatStorage.deleteSession(session.id);
+        await chatStorage.deleteSession('delete-me');
 
-        await expect(chatStorage.getSession(session.id)).resolves.toBeNull();
-        await expect(chatStorage.listSessions()).resolves.toEqual([]);
+        expect(getSessionSpy).not.toHaveBeenCalled();
+        await expect(chatStorage.getSession('delete-me')).resolves.toBeNull();
     });
 });

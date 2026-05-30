@@ -1,0 +1,30 @@
+---
+case_id: case-001
+slug: first-layer-under-extrusion
+title: First layer under extrusion on PLA
+defect_category: first_layer
+tags: ["adhesion", "flow", "z-offset"]
+cover_image: cover.jpg
+printer_model: Bambu Lab A1
+nozzle_diameter: 0.4
+filament_brand: Generic PLA
+filament_material: PLA
+filament_color: Gray
+slicer_name: Bambu Studio
+slicer_version: 2.1
+profile_source: community
+symptom_parameters: {"first_layer_speed": 60, "first_layer_height": 0.2}
+solution_parameters: {"first_layer_speed": 25, "z_offset": -0.03}
+root_cause_analysis: The nozzle was slightly too high and the first layer speed was too aggressive for adhesion.
+solution_summary: Slow down the first layer and lower the nozzle offset slightly.
+source_url: https://example.com/fdm/case-001
+source_platform: forum
+source_author: printlab_user
+source_question: Why does my first layer look thin and broken even though extrusion seems normal?
+source_answer: Reduce first layer speed and adjust nozzle offset because the line is not being pressed into the bed.
+license_note: Summary written from a public troubleshooting thread with source attribution.
+collected_by: codex
+review_status: reviewed
+---
+
+This case captures a common first-layer failure mode where the symptom looks like under-extrusion but the main cause is a high nozzle gap. It is a useful reference when users immediately want to increase flow without checking first-layer mechanics.

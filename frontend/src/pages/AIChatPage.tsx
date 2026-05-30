@@ -2,7 +2,16 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import JSZip from 'jszip';
 
 import { api } from '../api/api';
-import type { ChatFeedbackPayload, ChatMessage, FeedbackBinaryAsset, FeedbackImageAsset, Modification, ThreeMFParseResult } from '../api/api';
+import type {
+    ChatFeedbackPayload,
+    ChatMessage,
+    FeedbackBinaryAsset,
+    FeedbackImageAsset,
+    MatchedCase,
+    Modification,
+    ParameterRecommendation,
+    ThreeMFParseResult,
+} from '../api/api';
 import { loadApiSettings } from '../api/apiSettings';
 import { ChatComposer } from '../components/chat/ChatComposer';
 import { ChatMessageList } from '../components/chat/ChatMessageList';
@@ -421,6 +430,9 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
 
                         if (chunk.type === 'done') {
                             const nextMods = (chunk.modifications || []) as Modification[];
+                            const matchedCases = (chunk.matched_cases || []) as MatchedCase[];
+                            const parameterRecommendations =
+                                (chunk.parameter_recommendations || []) as ParameterRecommendation[];
                             if (nextMods.length > 0) {
                                 setModifications(nextMods);
                             }
@@ -431,6 +443,11 @@ export const AIChatPage: React.FC<AIChatPageProps> = ({ currentSessionId, onSess
                                               ...message,
                                               isStreaming: false,
                                               modifications: nextMods.length > 0 ? nextMods : undefined,
+                                              matchedCases: matchedCases.length > 0 ? matchedCases : undefined,
+                                              parameterRecommendations:
+                                                  parameterRecommendations.length > 0
+                                                      ? parameterRecommendations
+                                                      : undefined,
                                               usage: chunk.usage,
                                           }
                                         : message,

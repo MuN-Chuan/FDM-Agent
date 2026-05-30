@@ -6,9 +6,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.db.models import ChatFeedback
+from app.db.models import ChatFeedback, ChatSession
 from app.db.session import get_db
-from app.dependencies.auth import get_optional_current_user
 from app.main import app
 
 
@@ -31,9 +30,31 @@ def override_get_db():
 
 
 app.dependency_overrides[get_db] = override_get_db
-app.dependency_overrides[get_optional_current_user] = lambda: None
 
 client = TestClient(app)
+
+
+def test_chat_sessions_can_be_saved_without_authentication() -> None:
+    payload = {
+        "id": "chat-1",
+        "title": "Local session",
+        "timestamp": 1,
+        "messages": [{"id": "m1", "role": "user", "content": "hello"}],
+        "modifications": [],
+        "selection": None,
+        "bundle": None,
+        "presetFileName": None,
+    }
+
+    response = client.put("/api/chat/sessions/chat-1", json=payload)
+
+    assert response.status_code == 200
+    assert response.json()["id"] == "chat-1"
+
+    with TestingSessionLocal() as session:
+        saved = session.scalar(select(ChatSession).where(ChatSession.id == "chat-1"))
+        assert saved is not None
+        assert saved.title == "Local session"
 
 
 def test_submit_chat_feedback_persists_snapshot() -> None:

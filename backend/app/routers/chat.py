@@ -1,14 +1,13 @@
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import ChatFeedback, ChatMessageRecord, ChatSession, User
+from app.db.models import ChatFeedback, ChatMessageRecord, ChatSession
 from app.db.session import get_db
-from app.dependencies.auth import get_current_user, get_optional_current_user
 from app.models.chat import ChatFeedbackRequest, ChatRequest
-from app.schemas.auth import MessageResponse
 from app.schemas.session import SessionMetadata, SessionPayload, StoredMessage
 from app.services.chat_service import chat_service
 from app.services.rate_limit_service import build_rate_limit_dependency
@@ -28,6 +27,10 @@ chat_stream_rate_limit = build_rate_limit_dependency(
     max_requests=settings.CHAT_STREAM_RATE_LIMIT_MAX_REQUESTS,
     window_seconds=settings.CHAT_STREAM_RATE_LIMIT_WINDOW_SECONDS,
 )
+
+
+class MessageResponse(BaseModel):
+    message: str
 
 
 @router.post("/stream")
@@ -55,7 +58,6 @@ async def create_chat_stream(
 def submit_chat_feedback(
     payload: ChatFeedbackRequest,
     request: Request,
-    current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
     _: None = Depends(chat_rate_limit),
 ):
@@ -63,7 +65,7 @@ def submit_chat_feedback(
     assistant_message = payload.context_snapshot.get("assistant_message", {}) if isinstance(payload.context_snapshot, dict) else {}
 
     feedback = ChatFeedback(
-        user_id=current_user.id if current_user else None,
+        user_id=None,
         session_id=payload.session_id,
         assistant_message_id=payload.assistant_message_id,
         user_message_id=payload.user_message_id,
@@ -111,15 +113,10 @@ def _serialize_session(session: ChatSession) -> SessionPayload:
 @router.get("/sessions", response_model=list[SessionMetadata])
 def list_chat_sessions(
     request: Request,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: None = Depends(chat_rate_limit),
 ):
-    sessions = db.scalars(
-        select(ChatSession)
-        .where(ChatSession.user_id == current_user.id)
-        .order_by(ChatSession.timestamp.desc())
-    ).all()
+    sessions = db.scalars(select(ChatSession).order_by(ChatSession.timestamp.desc())).all()
     return [
         SessionMetadata(id=session.id, title=session.title, timestamp=session.timestamp)
         for session in sessions
@@ -130,16 +127,10 @@ def list_chat_sessions(
 def get_chat_session(
     session_id: str,
     request: Request,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: None = Depends(chat_rate_limit),
 ):
-    session = db.scalar(
-        select(ChatSession).where(
-            ChatSession.id == session_id,
-            ChatSession.user_id == current_user.id,
-        )
-    )
+    session = db.scalar(select(ChatSession).where(ChatSession.id == session_id))
     if session is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
     return _serialize_session(session)
@@ -150,18 +141,12 @@ def upsert_chat_session(
     session_id: str,
     payload: SessionPayload,
     request: Request,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: None = Depends(chat_rate_limit),
 ):
-    session = db.scalar(
-        select(ChatSession).where(
-            ChatSession.id == session_id,
-            ChatSession.user_id == current_user.id,
-        )
-    )
+    session = db.scalar(select(ChatSession).where(ChatSession.id == session_id))
     if session is None:
-        session = ChatSession(id=session_id, user_id=current_user.id)
+        session = ChatSession(id=session_id, user_id=None)
         db.add(session)
         db.flush()
 
@@ -193,12 +178,7 @@ def upsert_chat_session(
 
     db.commit()
     db.refresh(session)
-    session = db.scalar(
-        select(ChatSession).where(
-            ChatSession.id == session_id,
-            ChatSession.user_id == current_user.id,
-        )
-    )
+    session = db.scalar(select(ChatSession).where(ChatSession.id == session_id))
     return _serialize_session(session)
 
 
@@ -206,16 +186,10 @@ def upsert_chat_session(
 def delete_chat_session(
     session_id: str,
     request: Request,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     _: None = Depends(chat_rate_limit),
 ):
-    session = db.scalar(
-        select(ChatSession).where(
-            ChatSession.id == session_id,
-            ChatSession.user_id == current_user.id,
-        )
-    )
+    session = db.scalar(select(ChatSession).where(ChatSession.id == session_id))
     if session is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FDM Agent Case Record",
+  "type": "object",
+  "required": [
+    "case_id",
+    "slug",
+    "title",
+    "defect_category",
+    "cover_image",
+    "printer_model",
+    "filament_material",
+    "symptom_parameters",
+    "solution_parameters",
+    "root_cause_analysis",
+    "solution_summary",
+    "source_url",
+    "source_platform",
+    "source_author",
+    "source_question",
+    "source_answer",
+    "license_note",
+    "collected_by",
+    "review_status"
+  ],
+  "properties": {
+    "case_id": { "type": "string" },
+    "slug": { "type": "string" },
+    "title": { "type": "string" },
+    "defect_category": { "type": "string" },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "cover_image": { "type": "string" },
+    "printer_model": { "type": "string" },
+    "filament_material": { "type": "string" },
+    "symptom_parameters": { "type": "object" },
+    "solution_parameters": { "type": "object" },
+    "root_cause_analysis": { "type": "string" },
+    "solution_summary": { "type": "string" },
+    "source_url": { "type": "string" },
+    "source_platform": { "type": "string" },
+    "source_author": { "type": "string" },
+    "source_question": { "type": "string" },
+    "source_answer": { "type": "string" },
+    "license_note": { "type": "string" },
+    "collected_by": { "type": "string" },
+    "review_status": { "type": "string" }
+  }
+}

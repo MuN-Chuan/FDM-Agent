@@ -2,7 +2,6 @@ import React from 'react';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import type { AppPage } from '../../App';
-import type { UserProfile } from '../../api/api';
 
 interface MainLayoutProps {
     children: React.ReactNode;
@@ -10,9 +9,6 @@ interface MainLayoutProps {
     onNavigate: (page: AppPage) => void;
     currentSessionId: string | null;
     onSessionChange: (id: string | null) => void;
-    currentUser: UserProfile | null;
-    onOpenAuth: () => void;
-    onLogout: () => void;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({
@@ -21,9 +17,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
     onNavigate,
     currentSessionId,
     onSessionChange,
-    currentUser,
-    onOpenAuth,
-    onLogout,
 }) => {
     const isChatPage = currentPage === 'chat';
 
@@ -36,12 +29,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                 onSessionChange={onSessionChange}
             />
             <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden lg:pl-56">
-                <Topbar
-                    isBorderless={currentPage === 'chat'}
-                    currentUser={currentUser}
-                    onOpenAuth={onOpenAuth}
-                    onLogout={onLogout}
-                />
+                <Topbar isBorderless={currentPage === 'chat'} />
                 <main
                     className={`relative flex-1 overflow-hidden ${
                         isChatPage

@@ -3,8 +3,10 @@ import type {
     FeedbackAttachmentAsset,
     FeedbackImageAsset,
     FeedbackPresetSnapshot,
+    MatchedCase,
     MessageFeedbackRecord,
     Modification,
+    ParameterRecommendation,
     SessionMetadata,
     ThreeMFParseResult,
 } from '../../api/api';
@@ -20,6 +22,8 @@ export interface ChatUIMessage {
     slicerResult?: ThreeMFParseResult;
     thought?: string;
     modifications?: Modification[];
+    matchedCases?: MatchedCase[];
+    parameterRecommendations?: ParameterRecommendation[];
     isStreaming?: boolean;
     imagePreviewUrl?: string;
     imageAsset?: FeedbackImageAsset;

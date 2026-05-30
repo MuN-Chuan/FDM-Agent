@@ -1,0 +1,23 @@
+{
+  "name": "fdm-agent",
+  "version": "1.0.0",
+  "private": true,
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "dev": "concurrently -n back,front,agent -c blue,green,yellow \"cd backend && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001\" \"cd frontend && npm run dev\" \"cd client-agent && node src/index.js\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:desktop": "concurrently -n front,desktop -c green,cyan \"cd frontend && npm run dev -- --host 127.0.0.1 --port 5173 --strictPort\" \"wait-on tcp:5173 && electron .\"",
+    "build": "npm run build:cases && npm run build:frontend",
+    "build:cases": "python scripts/build_case_index.py",
+    "build:frontend": "cd frontend && npm run build",
+    "test:backend": "cd backend && python -m pytest tests/test_chat_feedback_routes.py tests/test_case_library_index_builder.py tests/test_case_library_routes.py tests/test_optimization_prompt_builder.py tests/test_diagnosis_routes.py -v",
+    "test:frontend": "cd frontend && npm test -- src/App.test.ts src/api/chatStorage.test.ts src/api/caseLibraryApi.test.ts src/components/layout/Sidebar.test.ts src/pages/CaseLibraryPage.test.ts",
+    "start": "cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 8001",
+    "desktop": "npm run build && electron ."
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "electron": "^37.2.6",
+    "wait-on": "^8.0.5"
+  }
+}

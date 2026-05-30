@@ -68,7 +68,11 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+        nullable=True,
+    )
     title: Mapped[str] = mapped_column(String(255), default="New Chat")
     timestamp: Mapped[int] = mapped_column(Integer, default=0)
     preset_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -82,7 +86,7 @@ class ChatSession(Base):
         onupdate=func.now(),
     )
 
-    user: Mapped[User] = relationship(back_populates="chat_sessions")
+    user: Mapped[User | None] = relationship(back_populates="chat_sessions")
     messages: Mapped[list["ChatMessageRecord"]] = relationship(
         back_populates="session",
         cascade="all, delete-orphan",
