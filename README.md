@@ -34,10 +34,11 @@ Each case can include:
 backend/                    FastAPI backend
 frontend/                   React frontend
 client-agent/               Local desktop helper for native 3MF workflows
-cases/library/              Canonical markdown case files
-cases/media/                Case thumbnails and redistributable assets
+cases/<slug>/docs/         Canonical markdown case files
+cases/<slug>/media/        Case thumbnails and redistributable assets
+cases/<slug>/runtime/      Per-case normalized JSON output
 cases/schema/               Case schema
-cases/generated/            Generated machine-readable JSON index
+cases/case-index.json       Generated aggregated JSON index
 scripts/build_case_index.py Case index builder
 ```
 
@@ -109,12 +110,13 @@ npm run build
 
 ## Case Library Workflow
 
-1. Add a new markdown case under `cases/library/`.
-2. Put the cover asset under `cases/media/<slug>/`.
-3. Rebuild the index with `npm run build:cases`.
-4. Verify the generated output in `cases/generated/case-index.json`.
+1. Create a case directory under `cases/<slug>/`.
+2. Put the markdown file under `cases/<slug>/docs/`.
+3. Put the cover asset under `cases/<slug>/media/`.
+4. Rebuild the index with `npm run build:cases`.
+5. Verify the generated outputs in `cases/<slug>/runtime/case.json` and `cases/case-index.json`.
 
-The canonical source of truth is markdown. Runtime APIs consume only the generated JSON index.
+The canonical source of truth is markdown. Runtime APIs consume the generated per-case JSON files and the aggregated case index.
 
 ## Contribution Model
 

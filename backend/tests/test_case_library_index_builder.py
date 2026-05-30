@@ -4,15 +4,15 @@ from app.services.case_library.index_builder import build_case_index
 
 
 def test_build_case_index_reads_markdown_cases(tmp_path: Path) -> None:
-    library = tmp_path / "library"
-    media = tmp_path / "media"
-    generated = tmp_path / "generated"
-    library.mkdir()
-    media.mkdir()
-    generated.mkdir()
-    (media / "case-001").mkdir()
-    (media / "case-001" / "cover.jpg").write_bytes(b"jpg")
-    (library / "case-001.md").write_text(
+    case_dir = tmp_path / "case-001"
+    document_dir = case_dir / "docs"
+    media_dir = case_dir / "media"
+    runtime_dir = case_dir / "runtime"
+    document_dir.mkdir(parents=True)
+    media_dir.mkdir()
+    runtime_dir.mkdir()
+    (media_dir / "cover.jpg").write_bytes(b"jpg")
+    (document_dir / "case.md").write_text(
         "---\n"
         "case_id: case-001\n"
         "slug: case-001\n"
@@ -40,7 +40,8 @@ def test_build_case_index_reads_markdown_cases(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    index = build_case_index(library, media, generated / "case-index.json")
+    index = build_case_index(tmp_path, tmp_path / "case-index.json")
 
     assert index["cases"][0]["case_id"] == "case-001"
     assert index["cases"][0]["parameter_delta"]["first_layer_speed"] == {"old": 60, "new": 25}
+    assert (runtime_dir / "case.json").exists()

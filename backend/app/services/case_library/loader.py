@@ -6,7 +6,7 @@ from app.models.case_library import CaseMedia, CaseRecord
 from app.services.case_library.parser import parse_case_markdown
 
 
-def load_case_markdown(path: Path, media_dir: Path) -> CaseRecord:
+def load_case_markdown(path: Path) -> CaseRecord:
     data, body = parse_case_markdown(path)
     slug = str(data.get("slug") or path.stem)
     cover_image = str(data.get("cover_image") or "")
@@ -16,7 +16,7 @@ def load_case_markdown(path: Path, media_dir: Path) -> CaseRecord:
         for item in data.get("media", [])
     ]
     if cover_image:
-        media_entries.insert(0, CaseMedia(kind="image", path=str(Path(slug) / cover_image), caption="cover"))
+        media_entries.insert(0, CaseMedia(kind="image", path=str(Path("media") / cover_image), caption="cover"))
 
     return CaseRecord(
         case_id=str(data.get("case_id") or path.stem),
@@ -24,7 +24,7 @@ def load_case_markdown(path: Path, media_dir: Path) -> CaseRecord:
         title=str(data.get("title") or path.stem),
         defect_category=str(data.get("defect_category") or "unknown"),
         tags=[str(item) for item in data.get("tags", [])],
-        cover_image=str(Path(slug) / cover_image) if cover_image else "",
+        cover_image=str(Path("media") / cover_image) if cover_image else "",
         media=media_entries,
         printer_model=str(data.get("printer_model") or ""),
         nozzle_diameter=str(data["nozzle_diameter"]) if data.get("nozzle_diameter") is not None else None,

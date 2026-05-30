@@ -10,11 +10,11 @@
         "flow",
         "z-offset"
       ],
-      "cover_image": "first-layer-under-extrusion\\cover.jpg",
+      "cover_image": "media\\cover.jpg",
       "media": [
         {
           "kind": "image",
-          "path": "first-layer-under-extrusion\\cover.jpg",
+          "path": "media\\cover.jpg",
           "caption": "cover"
         }
       ],
@@ -73,11 +73,11 @@
         "retraction",
         "drying"
       ],
-      "cover_image": "petg-stringing-hotend-temp\\cover.jpg",
+      "cover_image": "media\\cover.jpg",
       "media": [
         {
           "kind": "image",
-          "path": "petg-stringing-hotend-temp\\cover.jpg",
+          "path": "media\\cover.jpg",
           "caption": "cover"
         }
       ],

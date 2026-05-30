@@ -13,7 +13,11 @@ Do not couple case ingestion directly to 3MF execution logic. Keep these areas i
 
 ## Case Authoring Rules
 
-Add each case as one markdown file under `cases/library/`.
+Add each case under its own directory:
+
+- `cases/<slug>/docs/`
+- `cases/<slug>/media/`
+- `cases/<slug>/runtime/`
 
 Required fields:
 
@@ -35,7 +39,7 @@ Required fields:
 
 Required asset rule:
 
-- `cover_image` must point to a file under `cases/media/<slug>/`
+- `cover_image` must point to a file inside the same case directory's `media/`
 
 Source rule:
 
@@ -55,8 +59,9 @@ npm run build
 
 ## Design Boundaries
 
-- `cases/library/` is for human-maintained case content
-- `cases/generated/` is for machine-readable runtime output
+- `cases/<slug>/docs/` is for human-maintained case content
+- `cases/<slug>/runtime/` is for machine-readable per-case output
+- `cases/case-index.json` is the aggregated runtime index
 - `backend/app/services/case_library/` must stay data-focused
 - `backend/app/services/optimization/` must stay diagnosis-focused
 - 3MF and JSON optimization flows should consume structured recommendations, not markdown directly

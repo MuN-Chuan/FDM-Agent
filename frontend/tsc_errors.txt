@@ -1,1 +1,0 @@
-src/features/diagnosis/AnalysisTimeline.tsx(2,40): error TS6133: 'AlertCircle' is declared but its value is never read.

@@ -1,6 +1,0 @@
-Testing G28 \n via cloud_send...
-Error: Error: Bambu Studio cloud bridge failed: use_count = 4
-{"ok":false,"config_ret":0,"log_ret":0,"cert_ret":0,"country_ret":0,"start_ret":0,"check_cert_ret":0,"server_ret":0,"user_login":true,"subscribe_ret":0,"add_subscribe_ret":0,"connect_ret":0,"connect_status":-9999,"send_ret":-2,"connect_dev_id":"0309AA3C1400422","connect_message":"","sequence_id":"99999","response":"{\"print\":{\"bed_temper\":22.15625,\"command\":\"push_status\",\"msg\":1,\"sequence_id\":\"1808\"}}","message_count":1}
-    at runStudioCloudCommand (C:\Users\27822\Documents\FDM_AI_WEB\client-agent\src\handlers\studio.js:366:19)
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    at async run (C:\Users\27822\Documents\FDM_AI_WEB\client-agent\test-g28-cloud.js:16:24)

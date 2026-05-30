@@ -41,4 +41,4 @@ class CaseLibrarySearch:
 
 
 ROOT = Path(__file__).resolve().parents[4]
-case_library_search = CaseLibrarySearch(ROOT / "cases" / "generated" / "case-index.json")
+case_library_search = CaseLibrarySearch(ROOT / "cases" / "case-index.json")

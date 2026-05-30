@@ -14,7 +14,6 @@ from app.services.case_library.index_builder import build_case_index  # noqa: E4
 
 if __name__ == "__main__":
     build_case_index(
-        ROOT / "cases" / "library",
-        ROOT / "cases" / "media",
-        ROOT / "cases" / "generated" / "case-index.json",
+        ROOT / "cases",
+        ROOT / "cases" / "case-index.json",
     )

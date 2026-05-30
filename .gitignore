@@ -20,6 +20,11 @@
 /tmp_orca_bundle.txt
 /debug_results.txt
 /debug_results_expanded.txt
+/frontend/build_errors.txt
+/frontend/tsc_errors.txt
+/client-agent/output*.txt
+/client-agent/cli.log
+/client-agent/*.obj
 /test_output.txt
 /test_payload.json
 /test_response.json
