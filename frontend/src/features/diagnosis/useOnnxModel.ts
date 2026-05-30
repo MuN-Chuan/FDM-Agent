@@ -29,7 +29,7 @@ const CLASSES = [
     "Over Extrusion"
 ];
 
-export const useOnnxModel = () => {
+export const useOnnxModel = (enabled = true) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [session, setSession] = useState<any>(null);
     const [isModelReady, setIsModelReady] = useState(false);
@@ -37,15 +37,28 @@ export const useOnnxModel = () => {
     const [modelError, setModelError] = useState<string | null>(null);
 
     useEffect(() => {
+        if (!enabled) {
+            setSession(null);
+            setIsModelReady(false);
+            setIsInferencing(false);
+            setModelError(null);
+            return;
+        }
+
         let mounted = true;
+        const baseUrl = import.meta.env.BASE_URL || './';
+        const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 
         const initModel = async () => {
             try {
-                // Configure WASM paths to point to public/ort/
-                ort.env.wasm.wasmPaths = '/ort/';
-                ort.env.wasm.numThreads = 4; // Enable multi-threading
+                // ORT resolves its own `ort/...` assets relative to this base.
+                // Using the app base URL avoids producing `/ort/ort/...` in desktop/HTTP mode.
+                ort.env.wasm.wasmPaths = normalizedBaseUrl;
+                ort.env.wasm.numThreads = 1;
 
-                const newSession = await ort.InferenceSession.create('/models/kaggle-640.onnx');
+                const newSession = await ort.InferenceSession.create(`${normalizedBaseUrl}models/kaggle-640.onnx`, {
+                    executionProviders: ['wasm'],
+                });
 
                 if (mounted) {
                     setSession(newSession);
@@ -66,7 +79,7 @@ export const useOnnxModel = () => {
         return () => {
             mounted = false;
         };
-    }, []);
+    }, [enabled]);
 
     const runInference = useCallback(async (imageFile: File): Promise<InferenceResult[] | null> => {
         if (!session) return null;

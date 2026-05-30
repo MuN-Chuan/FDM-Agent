@@ -1,13 +1,14 @@
 const { app, BrowserWindow, shell } = require('electron');
+const http = require('http');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const isDev = !app.isPackaged;
 const rootDir = path.resolve(__dirname, '..');
-const frontendDist = path.join(rootDir, 'frontend', 'dist', 'index.html');
 const backendDir = path.join(rootDir, 'backend');
 const clientAgentDir = path.join(rootDir, 'client-agent');
-const rendererUrl = process.env.FDM_DESKTOP_RENDERER_URL || 'http://127.0.0.1:5173';
+const rendererUrl = process.env.FDM_DESKTOP_RENDERER_URL;
+const useDevServer = Boolean(rendererUrl);
+const desktopBackendUrl = 'http://127.0.0.1:8001';
 
 /** @type {import('child_process').ChildProcess[]} */
 const childProcesses = [];
@@ -63,6 +64,40 @@ function stopChildProcesses() {
     }
 }
 
+function waitForBackend(url, timeoutMs = 15000) {
+    const deadline = Date.now() + timeoutMs;
+
+    return new Promise((resolve, reject) => {
+        const attempt = () => {
+            const request = http.get(`${url}/health`, (response) => {
+                response.resume();
+                if (response.statusCode && response.statusCode >= 200 && response.statusCode < 500) {
+                    resolve();
+                    return;
+                }
+
+                if (Date.now() >= deadline) {
+                    reject(new Error(`Backend health check returned ${response.statusCode}`));
+                    return;
+                }
+
+                setTimeout(attempt, 250);
+            });
+
+            request.on('error', () => {
+                if (Date.now() >= deadline) {
+                    reject(new Error('Backend did not become ready in time'));
+                    return;
+                }
+
+                setTimeout(attempt, 250);
+            });
+        };
+
+        attempt();
+    });
+}
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1480,
@@ -88,18 +123,26 @@ function createWindow() {
         );
     });
 
+    mainWindow.webContents.on('render-process-gone', (_event, details) => {
+        console.error('[desktop] Renderer process gone:', details);
+    });
+
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
         shell.openExternal(url);
         return { action: 'deny' };
     });
 
-    if (isDev) {
+    if (useDevServer) {
         void mainWindow.loadURL(rendererUrl);
         mainWindow.webContents.openDevTools({ mode: 'detach' });
         return;
     }
 
-    void mainWindow.loadFile(frontendDist);
+    void waitForBackend(desktopBackendUrl)
+        .then(() => mainWindow?.loadURL(desktopBackendUrl))
+        .catch((error) => {
+            console.error('[desktop] Backend readiness check failed:', error);
+        });
 }
 
 app.whenReady().then(() => {

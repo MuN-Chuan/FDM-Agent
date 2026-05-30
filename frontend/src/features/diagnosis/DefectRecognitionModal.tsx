@@ -29,7 +29,7 @@ interface DefectRecognitionModalProps {
 }
 
 export const DefectRecognitionModal: React.FC<DefectRecognitionModalProps> = ({ isOpen, onClose }) => {
-    const { isModelReady, isInferencing, runInference } = useOnnxModel();
+    const { isModelReady, isInferencing, runInference } = useOnnxModel(isOpen);
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [results, setResults] = useState<{ className: string; probability: number }[] | null>(null);

@@ -1,4 +1,5 @@
 from pathlib import Path
+import mimetypes
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +17,8 @@ app = FastAPI(
     description="Backend service for analyzing FDM print defects using vision models and LLMs.",
     version=settings.VERSION
 )
+
+mimetypes.add_type("text/javascript", ".mjs")
 
 if settings.AUTO_CREATE_TABLES:
     Base.metadata.create_all(bind=engine)

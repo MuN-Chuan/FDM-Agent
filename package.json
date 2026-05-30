@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -n back,front,agent -c blue,green,yellow \"cd backend && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8001\" \"cd frontend && npm run dev\" \"cd client-agent && node src/index.js\"",
     "dev:frontend": "cd frontend && npm run dev",
-    "dev:desktop": "concurrently -n front,desktop -c green,cyan \"cd frontend && npm run dev -- --host 127.0.0.1 --port 5173 --strictPort\" \"wait-on tcp:5173 && electron .\"",
+    "dev:desktop": "concurrently -n front,desktop -c green,cyan \"cd frontend && npm run dev -- --host 127.0.0.1 --port 5173 --strictPort\" \"wait-on tcp:5173 && set FDM_DESKTOP_RENDERER_URL=http://127.0.0.1:5173 && electron .\"",
     "build": "npm run build:cases && npm run build:frontend",
     "build:cases": "python scripts/build_case_index.py",
     "build:frontend": "cd frontend && npm run build",
